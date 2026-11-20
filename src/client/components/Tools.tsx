@@ -87,7 +87,11 @@ const Install = ({
       .catch((error: unknown) => failure(tool.id, repo, error))
       .then((outcome) => {
         setResult(outcome)
-        if (outcome.ok) onInstalled()
+        if (outcome.ok) {
+          // The repo just served leaves the list: the next click must not still point at it.
+          setChosen('')
+          onInstalled()
+        }
       })
       .finally(() => setBusy(false))
   }

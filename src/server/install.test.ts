@@ -6,7 +6,14 @@ import { test } from 'node:test'
 import type { LocalRepo, ToolConfig } from '../shared/types'
 import { ConfigError } from './errors'
 import type { ExecResult } from './exec'
-import { installTool, packageManagerOf, planInstall, previewInstall, toRecipe } from './install'
+import {
+  installTool,
+  packageManagerOf,
+  planInstall,
+  previewInstall,
+  registryHint,
+  toRecipe,
+} from './install'
 
 const project = (...files: string[]) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-install-'))
@@ -145,7 +152,7 @@ test('stops at the command that fails, and passes on what it said', async () => 
     run,
   )
   assert.equal(result.ok, false)
-  assert.match(result.message, /a échoué/)
+  assert.match(result.message, /a échoué : le paquet est introuvable dans le registre npm/)
   assert.match(result.steps[0]?.output ?? '', /404 Not Found/)
 
   const missing = recorder({ [line]: { ...ok, ok: false, code: null } })
@@ -155,4 +162,13 @@ test('stops at the command that fails, and passes on what it said', async () => 
     missing.run,
   )
   assert.match(none.steps[0]?.output ?? '', /npm est introuvable/)
+})
+
+test('names the registry that answered 404, which is where a scope sent elsewhere shows', () => {
+  const pnpm =
+    '[ERR_PNPM_FETCH_404] GET https://npm.pkg.github.com/@acme%2Ftool: Not Found - 404\n@acme/tool is not in the npm registry'
+  assert.match(registryHint(pnpm) ?? '', /introuvable sur npm\.pkg\.github\.com/)
+  assert.equal(registryHint('npm error code EACCES'), null)
+  // A port or a version that merely holds the digits is not a 404.
+  assert.equal(registryHint('added 1404 packages'), null)
 })

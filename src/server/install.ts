@@ -10,6 +10,7 @@ import type {
 import { ConfigError } from './errors'
 import { exec, type ExecResult } from './exec'
 import { asRecord, asString } from './json'
+import { readBranchStatus } from './local'
 
 /**
  * What a recipe may name. Each is a plain name and can never start with a dash: whatever a config
@@ -158,6 +159,19 @@ const DONE: Record<InstallRecipe['kind'], (where: string, manager: string) => st
 }
 
 /**
+ * A registry that answers 404 is the usual way an npm install fails, and the reason is seldom the
+ * package: a scope sent to another registry by `~/.npmrc` hides one that is published elsewhere.
+ * So the registry that was asked is named.
+ */
+export const registryHint = (output: string): string | null => {
+  if (!/\bE?404\b/.test(output)) return null
+  const host = /https?:\/\/([a-z0-9.-]+)\//i.exec(output)?.[1]
+  return host
+    ? `le paquet est introuvable sur ${host} — s’il est publié ailleurs, c’est le registre de son scope qui est à corriger dans ~/.npmrc`
+    : 'le paquet est introuvable dans le registre npm de cette machine'
+}
+
+/**
  * Installs a tool: on the machine, in Claude Code, or in one clone. Nothing is run that the
  * recipe does not come down to, and a clone is only touched when it can be told apart afterwards —
  * a project with a package.json, and no modified file for the new dependency to hide among.
@@ -184,9 +198,11 @@ export const installTool = async (
     if (!isNpmProject(clone.path)) {
       return refused(`${clone.relativePath} n’a pas de package.json : ce n’est pas un projet npm`)
     }
-    if (clone.modifiedFiles > 0) {
+    // Read now, not taken from a status that may be minutes old: what was clean then may not be.
+    const modified = (await readBranchStatus(clone.path))?.modifiedFiles ?? clone.modifiedFiles
+    if (modified > 0) {
       return refused(
-        `${clone.relativePath} a ${clone.modifiedFiles} fichier${clone.modifiedFiles > 1 ? 's' : ''} modifié${clone.modifiedFiles > 1 ? 's' : ''} : commite ou range d’abord, pour que l’ajout reste lisible`,
+        `${clone.relativePath} a ${modified} fichier${modified > 1 ? 's' : ''} modifié${modified > 1 ? 's' : ''} : commite ou range d’abord, pour que l’ajout reste lisible`,
       )
     }
     dir = clone.path
@@ -205,12 +221,13 @@ export const installTool = async (
       output: missing ? `${step.command} est introuvable sur cette machine` : tailOf(result),
     })
     if (!result.ok && !step.optional) {
+      const hint = recipe.kind === 'claude-plugin' ? null : registryHint(tailOf(result))
       return {
         tool: tool.id,
         repo: repoId,
         ok: false,
         steps,
-        message: `« ${displayOf(step)} » a échoué`,
+        message: `« ${displayOf(step)} » a échoué${hint ? ` : ${hint}` : ''}`,
       }
     }
   }

@@ -18,7 +18,7 @@ const STEPS = [
     title: 'Lancer Zeus dans le dossier de tes projets',
     text: 'Dans un dossier vide ou déjà plein : Zeus ouvre cette page et te guide.',
     command: 'npx @vincweb/zeus',
-    note: 'Pas encore possible : le paquet n’est pas publié. Pour l’instant, Zeus ne se lance que depuis son dossier de sources, sur la machine où il a été écrit.',
+    note: 'Pas encore possible : le paquet n’est pas publié. D’ici là, il faut cloner le dépôt de Zeus et le construire (pnpm install, pnpm build), puis lancer node dist/cli.js.',
   },
 ]
 

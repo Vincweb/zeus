@@ -205,8 +205,8 @@ Même circuit que code-atlas : un tag `v*` lance `.github/workflows/release.yml`
 empaquette, crée la release GitHub avec l'archive, puis publie sur npm sans jeton (publication de
 confiance, à configurer une fois sur npmjs.com pour ce dépôt).
 
-Avant le premier tag : retirer `"private": true` de `package.json`, choisir une licence, et créer
-le dépôt `Vincweb/zeus` que `package.json` annonce déjà.
+Avant le premier tag : retirer `"private": true` de `package.json`, choisir une licence et un
+registre, et décider si le dépôt reste privé.
 
 ## Développement
 
