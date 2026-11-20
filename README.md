@@ -205,8 +205,22 @@ Même circuit que code-atlas : un tag `v*` lance `.github/workflows/release.yml`
 empaquette, crée la release GitHub avec l'archive, puis publie sur npm sans jeton (publication de
 confiance, à configurer une fois sur npmjs.com pour ce dépôt).
 
-Avant le premier tag : retirer `"private": true` de `package.json`, choisir une licence et un
-registre, et décider si le dépôt reste privé.
+L'archive se lance déjà sans registre : `npx <URL de l'archive>`, ou
+`npx --package <archive> zeus`.
+
+Avant le premier tag, il reste à :
+
+- **arrêter le nom du paquet.** Un scope n'a qu'un registre par machine : là où `~/.npmrc` envoie
+  `@vincweb` vers GitHub Packages, `npx @vincweb/zeus` cherchera au mauvais endroit, à moins
+  d'ajouter `--@vincweb:registry=https://registry.npmjs.org`. Un nom sans scope n'a pas ce défaut ;
+- **retirer `"private": true`** de `package.json`, qui est le seul garde-fou : un nom publié l'est
+  pour de bon ;
+- **décider si le dépôt devient public.** npm ne produit la provenance que pour un dépôt public :
+  s'il reste privé, retirer `--provenance` du workflow.
+
+## Licence
+
+MIT.
 
 ## Développement
 

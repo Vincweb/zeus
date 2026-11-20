@@ -161,13 +161,14 @@ const DONE: Record<InstallRecipe['kind'], (where: string, manager: string) => st
 /**
  * A registry that answers 404 is the usual way an npm install fails, and the reason is seldom the
  * package: a scope sent to another registry by `~/.npmrc` hides one that is published elsewhere.
- * So the registry that was asked is named.
+ * So the registry that was asked is named — and nothing more is advised, because that mapping is
+ * often what the private packages of the same scope rely on.
  */
 export const registryHint = (output: string): string | null => {
   if (!/\bE?404\b/.test(output)) return null
   const host = /https?:\/\/([a-z0-9.-]+)\//i.exec(output)?.[1]
   return host
-    ? `le paquet est introuvable sur ${host} — s’il est publié ailleurs, c’est le registre de son scope qui est à corriger dans ~/.npmrc`
+    ? `le paquet est introuvable sur ${host}, le registre que cette machine interroge pour lui (voir ~/.npmrc) — il est peut-être publié sur un autre`
     : 'le paquet est introuvable dans le registre npm de cette machine'
 }
 

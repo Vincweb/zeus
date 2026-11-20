@@ -22,6 +22,7 @@
     "url": "git+https://github.com/Vincweb/zeus.git"
   },
   "author": "Vincent Caudron (https://github.com/Vincweb)",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "zeus": "dist/cli.js"
