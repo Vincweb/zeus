@@ -40,12 +40,12 @@ test('lists its tools, each with a schema, the writing ones marked as such', asy
   }
   assert.deepEqual(
     tools.map((tool) => tool.name),
-    ['fleet', 'repo', 'home', 'update', 'clone'],
+    ['fleet', 'repo', 'home', 'update', 'clone', 'install'],
   )
   assert.ok(tools.every((tool) => tool.inputSchema.type === 'object'))
   assert.deepEqual(
     tools.filter((tool) => !tool.annotations.readOnlyHint).map((tool) => tool.name),
-    ['update', 'clone'],
+    ['update', 'clone', 'install'],
   )
 })
 
@@ -174,6 +174,8 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
       installed: true,
       version: null,
       repos: ['Vincweb/clean'],
+      installCommands: [],
+      installable: [],
     },
   ],
   archivedCount: 3,

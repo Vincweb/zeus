@@ -120,6 +120,18 @@ export type Orphan = { repo: LocalRepo; reason: OrphanReason }
 /** Where a tool applies: one repository at a time, the whole machine, or Claude Code itself. */
 export type ToolScope = 'repo' | 'machine' | 'claude-plugin'
 
+/**
+ * How a click installs a tool. The kinds are fixed, and a config only ever names a package or a
+ * plugin — never a command — so a `.zeus/config.json` cannot make the page run anything else.
+ */
+export type InstallRecipe =
+  /** A Claude Code plugin, `name@marketplace`, and the GitHub repository of that marketplace. */
+  | { kind: 'claude-plugin'; plugin: string; marketplace?: string }
+  /** A command-line tool installed for the whole machine. */
+  | { kind: 'npm-global'; package: string }
+  /** A development dependency, added to one clone with that clone's own package manager. */
+  | { kind: 'dev-dependency'; package: string }
+
 export type ToolConfig = {
   id: string
   name: string
@@ -128,8 +140,10 @@ export type ToolConfig = {
   scope: ToolScope
   /** The command that runs it, shown to copy. */
   run?: string
-  /** The command that installs it, shown to copy. */
-  install?: string
+  /** How a click installs it. */
+  install?: InstallRecipe
+  /** A command to copy, for a tool no recipe covers. */
+  installHint?: string
   detect?: {
     /** Scope `repo`: any of these files in a clone means the tool is set up there. */
     files?: string[]
@@ -137,6 +151,8 @@ export type ToolConfig = {
     dependency?: string
     /** Scope `claude-plugin`: the key in Claude Code's installed plugins, `name@marketplace`. */
     plugin?: string
+    /** Scope `machine`: a program to find on the PATH. */
+    command?: string
   }
 }
 
@@ -146,6 +162,25 @@ export type ToolStatus = ToolConfig & {
   version: string | null
   /** Scope `repo`: the ids of the followed repositories whose clone has it. */
   repos: string[]
+  /**
+   * What a click on « Installer » runs, shown before it is run. For a development dependency the
+   * program depends on the clone: this is the npm form, and the clone's own manager is used.
+   */
+  installCommands: string[]
+  /** Scope `repo`: the ids of the clones it can be installed in — npm projects that lack it. */
+  installable: string[]
+}
+
+/** One command of an installation, as it was run and how it ended. */
+export type InstallStep = { command: string; ok: boolean; output: string }
+
+export type InstallResult = {
+  tool: string
+  repo: string | null
+  ok: boolean
+  steps: InstallStep[]
+  /** One line for the page, in French. */
+  message: string
 }
 
 export type ClaudeLink = {

@@ -2,7 +2,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type { HomeCandidate, ToolConfig, ToolScope } from '../shared/types'
+import { ConfigError } from './errors'
 import { isDirectory } from './folders'
+import { toRecipe } from './install'
 import { asArray, asNumber, asRecord, asString, parseJson } from './json'
 
 /** The folder that marks a root. It may hold nothing at all: being there is the whole point. */
@@ -31,8 +33,7 @@ export type HomeConfig = {
  */
 export type Home = { root: string; config: HomeConfig }
 
-/** Something the user has to fix: the message is shown as it is, in the terminal and on the page. */
-export class ConfigError extends Error {}
+export { ConfigError }
 
 const SCOPES: ToolScope[] = ['repo', 'machine', 'claude-plugin']
 
@@ -46,7 +47,7 @@ export const DEFAULT_TOOLS: ToolConfig[] = [
     url: 'https://github.com/Vincweb/code-atlas',
     scope: 'repo',
     run: 'npx @vincweb/code-atlas',
-    install: 'npm install -D @vincweb/code-atlas',
+    install: { kind: 'dev-dependency', package: '@vincweb/code-atlas' },
     detect: {
       files: ['code-atlas.json', '.code-atlas/baseline.json'],
       dependency: '@vincweb/code-atlas',
@@ -60,6 +61,8 @@ export const DEFAULT_TOOLS: ToolConfig[] = [
     url: 'https://github.com/Vincweb/claude-context-viewer',
     scope: 'machine',
     run: 'npx claude-context-viewer',
+    install: { kind: 'npm-global', package: 'claude-context-viewer' },
+    detect: { command: 'claude-context-viewer' },
   },
 ]
 
@@ -83,12 +86,15 @@ const toTool = (value: unknown, index: number): ToolConfig => {
     url: asString(tool.url) ?? undefined,
     scope,
     run: asString(tool.run) ?? undefined,
-    install: asString(tool.install) ?? undefined,
+    // A recipe is what a click runs; a plain string is only ever shown, to be copied.
+    install: toRecipe(tool.install, `${MARKER}/${CONFIG_FILE} : tools[${index}].install`),
+    installHint: asString(tool.install) ?? undefined,
     detect: detect
       ? {
           files: stringsOf(detect.files),
           dependency: asString(detect.dependency) ?? undefined,
           plugin: asString(detect.plugin) ?? undefined,
+          command: asString(detect.command) ?? undefined,
         }
       : undefined,
   }

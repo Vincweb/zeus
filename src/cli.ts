@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url'
 import type { ActionResult, RepoStatus } from './shared/types'
 import { cloneRepo, updateRepo } from './server/actions'
 import { mapLimit } from './server/exec'
-import { ConfigError, MARKER, expandTilde, findHome, loadHome, tilde } from './server/home'
+import { ConfigError, MARKER, expandTilde, findHome, loadHome, tilde, toolsOf } from './server/home'
+import { installTool } from './server/install'
 import { serveMcp } from './server/mcp'
 import { renderStatus } from './server/report'
 import { serveZeus } from './server/server'
@@ -23,6 +24,8 @@ Usage
   zeus status [--json]              l'état de chaque repo suivi
   zeus clone <repo> [--into <d>]    clone un repo suivi, dans le dossier de son compte
   zeus update <repo>... | --all     fetch, puis avance rapide là où rien ne s'y oppose
+  zeus install <outil> [--repo <r>] installe un outil transverse : sur la machine, dans Claude
+                                    Code, ou dans le clone d'un repo
   zeus mcp                          sert la flotte à un agent (Model Context Protocol, sur stdio)
 
 Options
@@ -53,7 +56,7 @@ const readVersion = () => {
 }
 
 /** Flags that take a value, so the word after them is never read as a command or a repository. */
-const VALUED = ['-r', '--root', '--workspace', '-p', '--port', '--host', '--into']
+const VALUED = ['-r', '--root', '--workspace', '-p', '--port', '--host', '--into', '--repo']
 
 const valueOf = (argv: string[], ...names: string[]) => {
   for (const name of names) {
@@ -156,6 +159,34 @@ const main = async (argv: string[]): Promise<number | null> => {
     }
     const result = await cloneRepo(status, repo, valueOf(argv, '--into') ?? null)
     print(result)
+    return result.ok ? 0 : 1
+  }
+
+  if (command === 'install') {
+    const tools = toolsOf(loadHome(root))
+    const tool = tools.find((candidate) => candidate.id === names[0])
+    if (!tool) {
+      console.error(
+        `✗ outil inconnu : ${names[0] ?? '(aucun nom)'} — outils : ${tools.map((candidate) => candidate.id).join(', ')}`,
+      )
+      return 1
+    }
+    const wanted = valueOf(argv, '--repo')
+    const repo = wanted ? findRepo(status.repos, wanted) : null
+    if (wanted && !repo) {
+      console.error(`✗ repo suivi introuvable ou ambigu : ${wanted}`)
+      return 1
+    }
+    const result = await installTool(tool, {
+      root,
+      repoId: repo?.id ?? null,
+      clone: repo?.local ?? null,
+    })
+    for (const step of result.steps) {
+      console.log(`${step.ok ? '✓' : '✗'} ${step.command}`)
+      if (!step.ok && step.output) console.log(step.output.replace(/^/gm, '    '))
+    }
+    console.log(`${result.ok ? '✓' : '✗'} ${tool.name} — ${result.message}`)
     return result.ok ? 0 : 1
   }
 

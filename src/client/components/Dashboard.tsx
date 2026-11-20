@@ -383,7 +383,7 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
 
       {tools.length > 0 && (
         <div className="mt-8">
-          <Tools tools={tools} names={names} />
+          <Tools root={root} tools={tools} names={names} onInstalled={() => void refresh()} />
         </div>
       )}
 

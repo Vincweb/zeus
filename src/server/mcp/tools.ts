@@ -160,6 +160,34 @@ export const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'install',
+    description:
+      "Installs one of the cross-project tools `home` lists: a Claude Code plugin, a command-line tool for the whole machine, or a development dependency added to one clone with that clone's own package manager. Only what the tool's recipe comes down to is run. A clone is refused when it has modified files, and is left with a changed package.json and lockfile to commit. Writes to the disk: run it when the user asked.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        root: ROOT,
+        tool: {
+          type: 'string',
+          description: 'The id of the tool, as `home` gives it ("code-atlas").',
+        },
+        repo: {
+          type: 'string',
+          description:
+            'For a tool that lives in a project: the repository whose clone gets it, as "owner/name" or a bare name.',
+        },
+      },
+      required: ['tool'],
+      additionalProperties: false,
+    },
+  },
 ] as const
 
 export type ToolName = (typeof TOOLS)[number]['name']

@@ -50,7 +50,15 @@ peut savoir :
 {
   "hiddenOwners": ["une-grosse-org"],
   "folders": { "Vincweb": "perso" },
-  "tools": [{ "id": "mon-outil", "scope": "repo", "run": "npx mon-outil" }]
+  "tools": [
+    {
+      "id": "mon-outil",
+      "scope": "repo",
+      "run": "npx mon-outil",
+      "install": { "kind": "dev-dependency", "package": "mon-outil" },
+      "detect": { "dependency": "mon-outil" }
+    }
+  ]
 }
 ```
 
@@ -60,6 +68,28 @@ peut savoir :
 - **tools** — des outils transverses en plus de ceux par défaut (code-atlas,
   claude-context-viewer) ; un outil qui reprend l'`id` d'un outil par défaut le remplace.
 - **scanDepth** (3), **includeArchived** (`false`).
+
+## Les outils transverses
+
+Zeus liste les outils qui servent à plusieurs projets, dit où chacun est en place, et l'installe
+d'un clic. Un outil a une portée (`scope`) et, pour le clic, une recette (`install`) :
+
+| Recette                                                                                   | Ce qu'un clic lance                                                                                                         | Où          |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `{ "kind": "claude-plugin", "plugin": "nom@marketplace", "marketplace": "compte/depot" }` | `claude plugin marketplace add …` puis `claude plugin install …`                                                            | Claude Code |
+| `{ "kind": "npm-global", "package": "nom" }`                                              | `npm install -g nom`                                                                                                        | la machine  |
+| `{ "kind": "dev-dependency", "package": "nom" }`                                          | l'ajout en dépendance de développement, avec le gestionnaire **du repo choisi** — bun, pnpm, yarn ou npm selon son lockfile | un clone    |
+
+Une recette ne nomme qu'un paquet ou un plugin, jamais une commande : les trois formes sont fixes,
+et un nom qui n'est pas qu'un nom (`--registry=…`, `a; b`) est refusé à la lecture de la config.
+La page montre les commandes avant de les lancer, puis ce que chacune a répondu.
+
+Dans un clone, l'installation est refusée s'il a des fichiers modifiés — pour que l'ajout reste
+lisible — et laisse `package.json` et le lockfile modifiés, à commiter dans ce repo. Un `install`
+écrit comme une simple chaîne reste une commande à copier.
+
+Détection (`detect`) : `files` ou `dependency` dans un clone, `plugin` parmi les plugins installés
+de Claude Code, `command` sur le `PATH`.
 
 ## Ce que fait Zeus — et ce qu'il ne fait pas
 
@@ -97,6 +127,7 @@ clonés arrivent quelques secondes après, sans retenir la page.
 | `zeus status --json [--full]`          | le même, en un document — pour un script ou un agent |
 | `zeus clone <repo> [--into <dossier>]` | clone un repo suivi, dans le dossier de son compte   |
 | `zeus update <repo>…` / `--all`        | fetch, puis avance rapide là où rien ne s'y oppose   |
+| `zeus install <outil> [--repo <repo>]` | installe un outil transverse                         |
 | `zeus mcp`                             | sert la flotte à un agent (MCP, sur stdio)           |
 
 `-r, --root <dir>` nomme le dossier parent ; à défaut `ZEUS_ROOT`, sinon celui qui contient
@@ -114,13 +145,14 @@ claude mcp add -s project zeus -- npx -y @vincweb/zeus mcp   # une fois le paque
 `-s project` écrit `.mcp.json` dans le dossier parent. La page donne la commande exacte tant que
 ce n'est pas fait, et Claude Code demande ton accord la première fois.
 
-| Outil    | Ce qu'il répond                                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fleet`  | les repos suivis, une ligne chacun : workspace, chemin du clone, état, modifs en cours, CI, « prêt » ou non — par compte (`workspace`) et filtrable (`attention`, `behind`, `dirty`, `to-clone`…) |
-| `repo`   | un repo en entier, et pourquoi son clone n'est pas prêt quand il ne l'est pas                                                                                                                     |
-| `home`   | les workspaces, où vont leurs nouveaux clones, les outils en place, les autres dossiers git                                                                                                       |
-| `update` | fetch puis avance rapide — écrit sur le disque                                                                                                                                                    |
-| `clone`  | clone un repo dans le dossier de son compte — écrit sur le disque                                                                                                                                 |
+| Outil     | Ce qu'il répond                                                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fleet`   | les repos suivis, une ligne chacun : workspace, chemin du clone, état, modifs en cours, CI, « prêt » ou non — par compte (`workspace`) et filtrable (`attention`, `behind`, `dirty`, `to-clone`…) |
+| `repo`    | un repo en entier, et pourquoi son clone n'est pas prêt quand il ne l'est pas                                                                                                                     |
+| `home`    | les workspaces, où vont leurs nouveaux clones, les outils en place, les autres dossiers git                                                                                                       |
+| `update`  | fetch puis avance rapide — écrit sur le disque                                                                                                                                                    |
+| `clone`   | clone un repo dans le dossier de son compte — écrit sur le disque                                                                                                                                 |
+| `install` | installe un outil transverse, dans Claude Code, sur la machine ou dans un clone — écrit sur le disque                                                                                             |
 
 Le partage des rôles : **Zeus dit où et dans quel état**, Claude Code **ouvre les conversations**.
 La session du dossier parent est l'orchestratrice ; pour travailler dans un repo, elle ouvre une
@@ -163,6 +195,8 @@ La page peut lancer `git clone` et `git fetch` : elle n'obéit qu'à elle-même.
   compte, un dossier existant, ou quelques noms simples vérifiés un à un — toujours sous la racine.
 - Écarter ou suivre un compte ne nomme que des comptes que ton `gh` a listés.
 - Aucun shell, aucune invite : une commande qui demanderait un mot de passe échoue au lieu d'attendre.
+- Installer un outil ne nomme qu'un outil et, au plus, un repo : ce qui tourne est la recette que
+  le serveur tient pour cet outil, dans un clone qu'il a lui-même trouvé.
 - Zeus ne garde aucun jeton, ne crée aucun dépôt et ne pousse rien.
 
 ## Publier
@@ -187,6 +221,5 @@ page React + Vite + Tailwind, `tsup` pour la CLI, `node:test` pour les tests.
 ## Et ensuite
 
 - lancer `code-atlas --check --format json` sur chaque repo et afficher les scores ;
-- installer un outil d'un clic, au lieu de copier la commande ;
 - les services autour des repos : déploiements, quotas ;
 - un bilan « prêt à changer de machine » : ce qui n'est pas encore sur GitHub.

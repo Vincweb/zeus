@@ -1,6 +1,7 @@
 import type {
   ActionResult,
   DetailsPayload,
+  InstallResult,
   HomeCandidate,
   HomesPayload,
   MachineCheck,
@@ -89,3 +90,10 @@ export const createHome = (input: { dir: string; hidden: string[] }) =>
 /** Opens the Claude desktop app on the root, with the prompt filled in and not sent. */
 export const openInClaude = (root: string, prompt: string) =>
   post<{ opened: true }>('/api/claude/open', { root, prompt })
+
+/**
+ * Installs a tool: on the machine, in Claude Code, or — `repo` — in one clone. Only names travel:
+ * what is run is the recipe the server holds for that tool.
+ */
+export const installTool = (root: string, tool: string, repo: string | null) =>
+  post<InstallResult>('/api/tools/install', repo === null ? { root, tool } : { root, tool, repo })

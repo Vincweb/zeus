@@ -56,6 +56,7 @@ src/server/
   actions.ts            clone, mise à jour (fetch + avance rapide)
   setup.ts              faire d'un dossier un dossier parent
   tools.ts              où chaque outil est en place
+  install.ts            les recettes d'installation : lecture, plan, exécution
   selfCommand.ts        la commande qui relance ce Zeus, pour un prompt donné à un agent
   mcp/                  `zeus mcp` : index (protocole stdio), tools (catalogue), calls (réponses)
   host.ts               qui a le droit de lire, qui a le droit d'agir
@@ -84,6 +85,10 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
 - **Mettre à jour n'avance que tout droit** : fetch puis `merge --ff-only`. Jamais de merge, de
   rebase, de stash, de reset.
 - **Pas de shell, pas d'invite** : tout passe par `exec` (`execFile`, délai, invites coupées).
+- **Une config ne nomme jamais une commande.** Ce qu'un clic lance vient d'un petit nombre de
+  formes fixes (`InstallRecipe`) ; la config n'y met qu'un nom de paquet ou de plugin, validé à la
+  lecture. Une nouvelle sorte d'installation est une nouvelle forme dans `install.ts`, pas un champ
+  libre. Dans un clone, on n'installe que s'il est propre, et on dit ce qui reste à commiter.
 - **Aucun jeton stocké**, rien d'écrit sur GitHub : Zeus lit avec le `gh` de l'utilisateur,
   constate, et montre la commande (`gh auth login`) quand il manque quelque chose.
 - **Claude est invité, jamais lancé** : un prompt ouvert dans l'app, rempli et non envoyé

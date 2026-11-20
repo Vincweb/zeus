@@ -4,8 +4,9 @@ import type { ActionResult, HomesPayload, Owner, StatusPayload } from '../shared
 import { claudeLink, fleetPath } from '../shared/routes'
 import { cloneRepo, updateRepo } from './actions'
 import { openInBrowser, openUrl, pageUrl } from './browser'
-import { ConfigError, checkHome, discoverHomes, loadHome, saveHiddenOwners } from './home'
+import { ConfigError, checkHome, discoverHomes, loadHome, saveHiddenOwners, toolsOf } from './home'
 import { isAllowedHost, isForeign, mayAct } from './host'
+import { installTool } from './install'
 import { asArray, asRecord, asString, parseJson, type Json } from './json'
 import { checkMachine, listOwners } from './machine'
 import { createHome, describeTarget, resolveTarget } from './setup'
@@ -190,6 +191,30 @@ export const serveZeus = ({
           const repo = current.repos.find((candidate) => candidate.id === id)
           return repo ? updateRepo(repo) : null
         })
+
+      // A tool installed with a click. The request names a tool and at most a repository; what
+      // is run is the recipe this root holds for that tool, in a clone this server found itself.
+      case '/api/tools/install': {
+        const body = await bodyOf(request)
+        const root = rootOf(asString(body.root))
+        const tool = toolsOf(loadHome(root)).find(
+          (candidate) => candidate.id === asString(body.tool),
+        )
+        if (!tool) throw new Refusal(404, `aucun outil ne s'appelle ${asString(body.tool) ?? ''}`)
+        const repoId = asString(body.repo)
+        const repo = repoId
+          ? (await knownStatus(root)).repos.find((candidate) => candidate.id === repoId)
+          : undefined
+        if (repoId && !repo) throw new Refusal(404, `aucun repo suivi ne s'appelle ${repoId}`)
+        const result = await installTool(tool, {
+          root,
+          repoId: repo?.id ?? null,
+          clone: repo?.local ?? null,
+        })
+        // What is in place has changed: the next status must not be the one kept from before.
+        known.delete(root)
+        return result
+      }
 
       // Which accounts a root follows: all of them, minus the ones named here.
       case '/api/accounts': {

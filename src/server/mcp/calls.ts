@@ -2,7 +2,8 @@ import path from 'path'
 import type { RepoStatus, StatusPayload } from '../../shared/types'
 import { cloneRepo, updateRepo } from '../actions'
 import { mapLimit } from '../exec'
-import { ConfigError, MARKER, expandTilde, findHome, loadHome } from '../home'
+import { ConfigError, MARKER, expandTilde, findHome, loadHome, toolsOf } from '../home'
+import { installTool } from '../install'
 import { collectStatus } from '../status'
 import { FILTERS, type FleetFilter, type ToolName } from './tools'
 
@@ -240,6 +241,9 @@ export const homeView = (status: StatusPayload) => ({
     version: tool.version,
     inPlaceIn: tool.repos,
     ...(tool.run ? { run: tool.run } : {}),
+    // What `install` would run, and — for a tool that lives in a project — where it could.
+    ...(tool.installCommands.length > 0 ? { install: tool.installCommands } : {}),
+    ...(tool.installable.length > 0 ? { installableIn: tool.installable } : {}),
   })),
   otherGitFolders: status.orphans.map(({ repo, reason }) => ({
     path: repo.path,
@@ -291,6 +295,23 @@ const answer = async (ctx: McpContext, name: ToolName, params: Params): Promise<
       const status = await read(ctx, params, false)
       const repo = find(status, stringOf(params, 'repo'))
       return cloneRepo(status, repo, stringOf(params, 'folder') ?? null)
+    }
+    case 'install': {
+      const status = await read(ctx, params, false)
+      const tools = toolsOf(loadHome(status.home.root))
+      const tool = tools.find((candidate) => candidate.id === stringOf(params, 'tool'))
+      if (!tool) {
+        throw new ToolError(
+          `No tool is called ${stringOf(params, 'tool') ?? ''}. The tools are: ${tools.map((candidate) => candidate.id).join(', ')}.`,
+        )
+      }
+      const wanted = stringOf(params, 'repo')
+      const repo = wanted === undefined ? null : find(status, wanted)
+      return installTool(tool, {
+        root: status.home.root,
+        repoId: repo?.id ?? null,
+        clone: repo?.local ?? null,
+      })
     }
   }
 }

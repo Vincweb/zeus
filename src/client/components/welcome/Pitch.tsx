@@ -54,7 +54,7 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
       </Icon>
     ),
     title: 'Les outils transverses',
-    text: 'code-atlas, plugins Claude Code et les autres : où chacun est en place, et la commande pour le lancer ou l’installer.',
+    text: 'code-atlas, plugins Claude Code et les autres : où chacun est en place, et un clic pour l’installer — sur la machine, dans Claude Code, ou dans le clone d’un repo.',
   },
 ]
 
@@ -186,7 +186,6 @@ export const Boundary = () => (
 
 const NEXT = [
   'Scores code-atlas, repo par repo',
-  'Installer un outil d’un clic',
   'Un bilan avant de changer de machine',
   'Services : déploiements et quotas',
 ]

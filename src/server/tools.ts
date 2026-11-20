@@ -2,6 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type { RepoStatus, ToolConfig, ToolStatus } from '../shared/types'
+import { isNpmProject, previewInstall } from './install'
 import { asArray, asRecord, asString, at, parseJson } from './json'
 
 const readJson = (file: string) => {
@@ -34,27 +35,49 @@ const isSetUpIn = (dir: string, detect: NonNullable<ToolConfig['detect']>) =>
   (detect.files ?? []).some((file) => fs.existsSync(path.join(dir, file))) ||
   (detect.dependency !== undefined && dependsOn(dir, detect.dependency))
 
+/** Whether a program is there to be run: a file by that name, executable, in a folder of the PATH. */
+const onPath = (command: string) =>
+  (process.env.PATH ?? '').split(path.delimiter).some((dir) => {
+    try {
+      fs.accessSync(path.join(dir, command), fs.constants.X_OK)
+      return true
+    } catch {
+      return false
+    }
+  })
+
 /**
- * Where each tool of the workspace stands. Detection only reads what is already on disk; a tool
- * fetched on demand (`npx …`) leaves nothing to find, and says so with `installed: null`.
+ * Where each tool stands. Detection only reads what is already on disk; a tool fetched on demand
+ * (`npx …`) leaves nothing to find, and says so with `installed: null`.
  */
 export const readTools = (tools: ToolConfig[], repos: RepoStatus[]): ToolStatus[] =>
-  tools.map((tool) => {
+  tools.map((tool): ToolStatus => {
+    const installCommands = tool.install ? previewInstall(tool.install) : []
+    const blank = { ...tool, version: null, repos: [], installCommands, installable: [] }
     if (tool.scope === 'claude-plugin') {
       const version = tool.detect?.plugin ? pluginVersion(tool.detect.plugin) : null
-      return {
-        ...tool,
-        installed: tool.detect?.plugin ? version !== null : null,
-        version,
-        repos: [],
-      }
+      return { ...blank, installed: tool.detect?.plugin ? version !== null : null, version }
     }
     if (tool.scope === 'repo' && tool.detect) {
       const detect = tool.detect
-      const equipped = repos
-        .filter((repo) => repo.local !== null && isSetUpIn(repo.local.path, detect))
-        .map((repo) => repo.id)
-      return { ...tool, installed: equipped.length > 0, version: null, repos: equipped }
+      const cloned = repos.filter((repo) => repo.local !== null)
+      const equipped = cloned.filter((repo) => repo.local && isSetUpIn(repo.local.path, detect))
+      const has = new Set(equipped.map((repo) => repo.id))
+      return {
+        ...blank,
+        installed: equipped.length > 0,
+        repos: equipped.map((repo) => repo.id),
+        // Where a click could put it: an npm project that does not have it yet.
+        installable:
+          tool.install?.kind === 'dev-dependency'
+            ? cloned
+                .filter((repo) => !has.has(repo.id) && repo.local && isNpmProject(repo.local.path))
+                .map((repo) => repo.id)
+            : [],
+      }
     }
-    return { ...tool, installed: null, version: null, repos: [] }
+    if (tool.scope === 'machine' && tool.detect?.command) {
+      return { ...blank, installed: onPath(tool.detect.command) }
+    }
+    return { ...blank, installed: null }
   })
