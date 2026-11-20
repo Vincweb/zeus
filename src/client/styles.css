@@ -1,0 +1,179 @@
+@import 'tailwindcss';
+@source './';
+
+/*
+ * Ink and gold: a near-black ground or a warm paper one, and one accent the colour of a bolt.
+ * Two golds on purpose — the bright one is a fill, the deep one is for text, where the bright one
+ * would not clear contrast on paper. The state colours each come as a text tone and a soft ground.
+ */
+@theme {
+  --color-bg: #f6f5f1;
+  --color-panel: #ffffff;
+  --color-raised: #faf9f6;
+  --color-line: #e3e1d9;
+  --color-line-soft: #eeece5;
+  --color-text: #15171c;
+  --color-muted: #555b6b;
+  --color-faint: #878c99;
+  --color-accent: #8a5f00;
+  --color-accent-fill: #f2b01e;
+  --color-accent-soft: #fcf1d2;
+  --color-on-accent: #1d1602;
+  --color-ok: #1b7448;
+  --color-ok-soft: #e2f3e9;
+  --color-warn: #96560a;
+  --color-warn-soft: #fcedd6;
+  --color-danger: #ae2f29;
+  --color-danger-soft: #fae5e3;
+  --color-info: #2857ad;
+  --color-info-soft: #e4ecfa;
+
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --shadow-card: 0 1px 2px rgb(21 23 28 / 0.05), 0 1px 1px rgb(21 23 28 / 0.03);
+  --shadow-lift: 0 12px 32px -12px rgb(21 23 28 / 0.28), 0 2px 6px rgb(21 23 28 / 0.06);
+
+  --animate-spin-slow: spin 0.9s linear infinite;
+  /* A dash that runs down a link of the welcome drawing, from Zeus out to a repository. */
+  --animate-spark: spark 3.2s linear infinite;
+
+  /* The three motions of the opening screen: a placeholder's sheen, the bar, the bolt's rings. */
+  --animate-shimmer: shimmer 1.7s ease-in-out infinite;
+  --animate-slide: slide 1.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  --animate-ring: ring 2.2s ease-out infinite;
+
+  @keyframes spark {
+    to {
+      stroke-dashoffset: -240;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  @keyframes slide {
+    from {
+      transform: translateX(-110%);
+    }
+    to {
+      transform: translateX(360%);
+    }
+  }
+  @keyframes ring {
+    from {
+      transform: scale(0.75);
+      opacity: 0.55;
+    }
+    to {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+}
+
+/*
+ * A block standing in for content still on its way. Without motion it is a plain quiet shape,
+ * which says the same thing.
+ */
+@utility skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--color-line-soft) 30%,
+    var(--color-line) 50%,
+    var(--color-line-soft) 70%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* A field of dots that fades out towards its edges: the ground the welcome drawing sits on. */
+@utility dot-grid {
+  background-image: radial-gradient(var(--color-line) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+  mask-image: radial-gradient(closest-side, black 55%, transparent);
+}
+
+/* The bolt's own light, behind the drawing. */
+@utility bolt-glow {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--color-accent-fill) 26%, transparent),
+    transparent
+  );
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #0c0f15;
+      --color-panel: #141922;
+      --color-raised: #19202b;
+      --color-line: #262e3b;
+      --color-line-soft: #1d2430;
+      --color-text: #e9ebf1;
+      --color-muted: #a5acbc;
+      --color-faint: #747d8f;
+      --color-accent: #f5c350;
+      --color-accent-soft: #33290f;
+      --color-ok: #62d199;
+      --color-ok-soft: #12301f;
+      --color-warn: #f1b463;
+      --color-warn-soft: #33250f;
+      --color-danger: #f38f86;
+      --color-danger-soft: #3a1917;
+      --color-info: #8fb6f9;
+      --color-info-soft: #17243e;
+    }
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent-fill);
+    outline-offset: 2px;
+  }
+
+  dialog::backdrop {
+    background: rgb(12 15 21 / 0.55);
+  }
+
+  /* Every motion on the page is decorative; none of it carries information a still page lacks. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+}

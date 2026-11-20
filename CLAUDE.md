@@ -1,0 +1,94 @@
+# Zeus
+
+Orchestrateur d'une flotte de repos git : état, clone / mise à jour, outils transverses.
+Une CLI Node, une page locale, un serveur MCP. Voir `README.md` pour l'usage.
+
+## Le modèle — à ne pas compliquer
+
+Un **dossier parent** (celui qui contient `.zeus/`), et c'est tout ce qui se choisit. Le reste se
+lit là où il vit : les **workspaces** sont les comptes GitHub que `gh` voit (toi, tes
+organisations), les **repos** sont ceux que GitHub liste pour eux, les **clones** sortent d'un scan
+et se rattachent à leur repo par leur remote. Un nouveau clone va dans `<racine>/<compte>/<repo>`.
+
+- **Pas de seconde organisation.** Rien ne classe un repo dans un workspace à part GitHub. Pas de
+  familles, pas de notes, pas de registre à la main : tout ce qui demanderait d'être tenu à jour
+  finit périmé. Avant d'ajouter une clé à `.zeus/config.json`, se demander si l'information
+  n'existe pas déjà quelque part où elle se lit.
+- **Aucun chemin absolu enregistré.** La racine se trouve en remontant depuis le dossier courant
+  (`findHome`). Ce qui dépend de la machine (SSH ou HTTPS, les clones présents) se constate à
+  chaque lecture et ne s'écrit dans aucune config.
+- **Ne rien coder en dur pour un compte.** L'outil sert une flotte perso comme celle d'une
+  organisation de deux cents repos : pas d'hypothèse « tout est cloné », ni « tout tient en une
+  requête ».
+
+## Frontière — à ne pas franchir
+
+Zeus **orchestre**, il n'analyse pas un projet. Ce qui se calcule en regardant un seul repo
+(score, dépendances périmées, failles, audit IA) appartient à l'outil de ce repo — `code-atlas`
+pour un projet TypeScript. Zeus le lance et rassemble ses résultats ; il ne lit ni lockfile ni
+code. Avant d'ajouter une lecture « par repo » ici, se demander si elle n'a pas sa place là-bas.
+
+Zeus **ne coordonne pas d'agents** non plus. Claude Code le fait (sessions, fils d'un projet) ;
+Zeus lui répond par `zeus mcp` : où sont les clones, dans quel état, lesquels sont prêts. Tout ce
+que la page sait doit pouvoir se demander par un outil MCP.
+
+## Commandes
+
+```sh
+pnpm dev --root ..     # API :4900 (tsx watch) + page :4901 (Vite), sur le dossier au-dessus
+pnpm check             # lint + types + tests + build — avant de rendre la main
+pnpm test              # node:test, fichiers *.test.ts à côté du code
+pnpm format            # Prettier
+```
+
+## Structure
+
+```text
+src/cli.ts              commandes : (page) · init · status · clone · update · mcp
+src/shared/types.ts     le contrat entre serveur et page
+src/shared/routes.ts    les URL de la page : `/`, `/fleet?root=…&workspace=…`, `/setup`
+src/server/
+  home.ts               le dossier parent : `.zeus/`, sa recherche, sa config facultative
+  machine.ts            ce que la machine a : git, gh, compte, SSH ; les comptes (workspaces)
+  github.ts             liste des repos d'un compte, puis leurs détails par petits lots
+  local.ts              recherche des clones, lecture de `git status`
+  status.ts             le rapprochement GitHub ↔ clones ; ce qui est détaillé tout de suite ou après
+  actions.ts            clone, mise à jour (fetch + avance rapide)
+  setup.ts              faire d'un dossier un dossier parent
+  tools.ts              où chaque outil est en place
+  selfCommand.ts        la commande qui relance ce Zeus, pour un prompt donné à un agent
+  mcp/                  `zeus mcp` : index (protocole stdio), tools (catalogue), calls (réponses)
+  host.ts               qui a le droit de lire, qui a le droit d'agir
+  server.ts             les routes /api et la page
+src/client/             la page (React, TanStack Query, Tailwind v4)
+  router.ts             l'écran courant, lu dans l'URL
+  recent.ts             les dossiers déjà ouverts (localStorage — un confort, rien de plus)
+  components/Welcome    l'accueil : choisir un dossier, installer Zeus ailleurs
+  components/Setup      choisir le dossier parent, sur une machine qui n'a jamais vu Zeus
+  components/Opening    l'écran pendant la lecture d'une flotte
+  components/Dashboard  une flotte : onglets par compte, repos, actions, outils
+```
+
+## Règles
+
+- **Code en anglais, texte visible en français** (page, messages de la CLI, erreurs montrées).
+  Les descriptions des outils MCP sont en anglais : c'est un agent qui les lit.
+- **Lire n'écrit rien.** `status` ne fait ni fetch ni écriture ; « en retard » se juge sur le
+  commit de tête de la branche par défaut que GitHub annonce, comparé à ce que le clone contient.
+- **GitHub coûte cher à interroger.** La liste d'un compte (noms, drapeaux) est rapide ; le détail
+  (branche par défaut, CI, PR) ne l'est pas — sur deux cents repos, le demander d'un bloc expire.
+  D'où les deux passes de `github.ts`, et `pendingDetails` : ne rien ajouter à la requête `LIST`
+  sans la chronométrer sur une grosse organisation.
+- **Une action ne reçoit qu'un `owner/name`.** URL et chemins viennent du statut que le serveur a
+  lui-même collecté, jamais de la requête. Toute nouvelle action passe par `mayAct` (`host.ts`).
+- **Mettre à jour n'avance que tout droit** : fetch puis `merge --ff-only`. Jamais de merge, de
+  rebase, de stash, de reset.
+- **Pas de shell, pas d'invite** : tout passe par `exec` (`execFile`, délai, invites coupées).
+- **Aucun jeton stocké**, rien d'écrit sur GitHub : Zeus lit avec le `gh` de l'utilisateur,
+  constate, et montre la commande (`gh auth login`) quand il manque quelque chose.
+- **Claude est invité, jamais lancé** : un prompt ouvert dans l'app, rempli et non envoyé
+  (`claudeLink`), ou copié.
+- **La CLI ne force pas sa sortie** (`process.exitCode`, pas `process.exit`) : un état de 200 Ko lu
+  à travers un tube serait tronqué.
+- **Pas de dépendance à l'exécution** : la CLI publiée n'embarque que du Node.
+- Les actions se testent sur des repos jetables (`actions.test.ts`), jamais sur de vrais clones.

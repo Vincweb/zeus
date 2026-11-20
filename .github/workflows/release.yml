@@ -1,0 +1,51 @@
+name: Release
+
+# Publishes on a version tag — once the package is meant to be public. Until then package.json
+# carries `"private": true`, which makes the publish step refuse: remove it on purpose, never by
+# accident. The first publication also needs npm trusted publishing set up for this repository.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # To create the GitHub Release, and for the OIDC exchange npm trusted publishing runs on.
+      contents: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+      - name: Pack the tarball
+        id: pack
+        run: echo "file=$(npm pack --silent | tail -1)" >> "$GITHUB_OUTPUT"
+
+      # The release is the whole publication when there is no npm token: the tarball hangs off it,
+      # and `npx <that URL>` runs the built package without a registry.
+      - name: Create the GitHub Release
+        run: |
+          gh release create "$TAG" "$FILE" --title "$TAG" --generate-notes --notes "
+          Run this release without a registry:
+
+              npx https://github.com/$REPO/releases/download/$TAG/$FILE
+          "
+        env:
+          TAG: ${{ github.ref_name }}
+          FILE: ${{ steps.pack.outputs.file }}
+          REPO: ${{ github.repository }}
+
+      # No token: npm trusts this workflow by name, exchanges the OIDC id-token for a short-lived
+      # credential, and attests the provenance from it. Renaming this file breaks the trust.
+      - name: Publish to npm
+        run: pnpm publish --access public --no-git-checks --provenance

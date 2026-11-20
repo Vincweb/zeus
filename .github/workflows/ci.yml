@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm test
+      - run: pnpm build
+
+      # The build only proves it compiles. This proves the thing it compiles to finds a root from
+      # beneath it, serves the page, and still refuses a request that did not come from that page.
+      # Nothing here asks GitHub: the welcome routes read the disk alone.
+      - name: Smoke-test the built server against a fixture root
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/projets"
+          mkdir -p "$root/Sites/Vitrine/src"
+          (cd "$root" && node "$GITHUB_WORKSPACE/dist/cli.js" init)
+          [ -d "$root/.zeus" ] || { echo "init did not create .zeus/"; exit 1; }
+
+          # Started deep inside the root, not at it: the root has to be found by walking up.
+          (cd "$root/Sites/Vitrine/src" && node "$GITHUB_WORKSPACE/dist/cli.js" --port 4900 --no-open) &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 40); do
+            sleep 0.5
+            curl -sf -o /dev/null http://127.0.0.1:4900/ && break
+          done
+
+          curl -sf -o /dev/null http://127.0.0.1:4900/ \
+            || { echo "the page did not come up"; exit 1; }
+          curl -sf -o /dev/null http://127.0.0.1:4900/favicon.svg \
+            || { echo "the bundle is not being served"; exit 1; }
+          curl -sf -o /dev/null "http://127.0.0.1:4900/fleet?root=$root" \
+            || { echo "a fleet URL did not serve the page"; exit 1; }
+
+          curl -sf http://127.0.0.1:4900/api/homes \
+            | grep -q "\"launch\":\"$root\"" \
+            || { echo "the root was not found from beneath it"; exit 1; }
+
+          # A page on another origin must not be able to read the fleet, let alone act on it.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'sec-fetch-site: cross-site' http://127.0.0.1:4900/api/homes)
+          [ "$code" = "403" ] \
+            || { echo "a cross-site request was not refused (got $code)"; exit 1; }
+
+          # Nor a page that rebinds its own domain to 127.0.0.1, which the browser calls same-origin.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'host: evil.example:4900' -H 'sec-fetch-site: same-origin' \
+            http://127.0.0.1:4900/api/homes)
+          [ "$code" = "403" ] \
+            || { echo "a request for a foreign host was not refused (got $code)"; exit 1; }
+
+          # An action without the page's own JSON declaration is refused before anything runs.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -d 'id=octocat/hello' http://127.0.0.1:4900/api/update)
+          [ "$code" = "403" ] \
+            || { echo "an action that did not come from the page was not refused (got $code)"; exit 1; }
