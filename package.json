@@ -23,6 +23,10 @@
   },
   "author": "Vincent Caudron (https://github.com/Vincweb)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "@vincweb:registry": "https://registry.npmjs.org/"
+  },
   "type": "module",
   "bin": {
     "zeus": "dist/cli.js"

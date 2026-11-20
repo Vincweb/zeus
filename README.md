@@ -11,6 +11,14 @@ npx @vincweb/zeus            # ouvre la page — une fois le paquet publié
 Il lui faut Node 20 ou plus, `git`, et [`gh`](https://cli.github.com) connecté à ton compte
 (`gh auth login`). Aucune dépendance à l'exécution.
 
+Un scope npm n'a qu'un registre par machine. Là où `~/.npmrc` envoie `@vincweb` ailleurs que sur
+npm — vers GitHub Packages, pour des paquets privés — la commande ci-dessus répond 404, et il faut
+nommer le registre :
+
+```sh
+npx --@vincweb:registry=https://registry.npmjs.org @vincweb/zeus
+```
+
 Tant que le paquet n'est pas publié — `package.json` porte `"private": true`, exprès — il se lance
 depuis les sources :
 
@@ -139,8 +147,12 @@ Zeus se branche à Claude Code comme serveur MCP : une session ouverte **sur le 
 connaît alors la flotte, au lieu de la reconstituer avec `git` et `gh`.
 
 ```sh
-claude mcp add -s project zeus -- npx -y @vincweb/zeus mcp   # une fois le paquet publié
+# une fois le paquet publié
+claude mcp add -s project zeus -- npx -y --@vincweb:registry=https://registry.npmjs.org @vincweb/zeus mcp
 ```
+
+Le registre y est nommé exprès : la commande marche alors sur toute machine, quel que soit son
+`~/.npmrc`.
 
 `-s project` écrit `.mcp.json` dans le dossier parent. La page donne la commande exacte tant que
 ce n'est pas fait, et Claude Code demande ton accord la première fois.
@@ -208,11 +220,12 @@ confiance, à configurer une fois sur npmjs.com pour ce dépôt).
 L'archive se lance déjà sans registre : `npx <URL de l'archive>`, ou
 `npx --package <archive> zeus`.
 
+Le paquet garde le nom `@vincweb/zeus`, sur npm public. Comme ce scope sert aussi à des paquets
+privés sur GitHub Packages, `publishConfig` épingle le registre du scope : sans lui, `npm publish`
+et `pnpm publish` enverraient Zeus vers le registre que `~/.npmrc` donne à `@vincweb`.
+
 Avant le premier tag, il reste à :
 
-- **arrêter le nom du paquet.** Un scope n'a qu'un registre par machine : là où `~/.npmrc` envoie
-  `@vincweb` vers GitHub Packages, `npx @vincweb/zeus` cherchera au mauvais endroit, à moins
-  d'ajouter `--@vincweb:registry=https://registry.npmjs.org`. Un nom sans scope n'a pas ce défaut ;
 - **retirer `"private": true`** de `package.json`, qui est le seul garde-fou : un nom publié l'est
   pour de bon ;
 - **décider si le dépôt devient public.** npm ne produit la provenance que pour un dépôt public :

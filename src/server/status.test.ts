@@ -75,6 +75,14 @@ test('recognises a .mcp.json that declares the Zeus server', () => {
   const declares = (command: string, args: string[]) =>
     declaresZeus({ mcpServers: { anything: { command, args } } })
   assert.ok(declares('npx', ['-y', '@vincweb/zeus', 'mcp']))
+  assert.ok(
+    declares('npx', [
+      '-y',
+      '--@vincweb:registry=https://registry.npmjs.org',
+      '@vincweb/zeus',
+      'mcp',
+    ]),
+  )
   assert.ok(declares('node', ['Zeus/dist/cli.js', 'mcp']))
   assert.ok(!declares('npx', ['-y', '@vincweb/code-atlas', 'mcp']))
   assert.ok(!declares('node', ['Zeus/dist/cli.js', 'status']))
