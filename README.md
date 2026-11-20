@@ -226,10 +226,14 @@ et `pnpm publish` enverraient Zeus vers le registre que `~/.npmrc` donne à `@vi
 
 Avant le premier tag, il reste à :
 
+- **déclarer la publication de confiance** sur npmjs.com : utilisateur `Vincweb`, dépôt `zeus`,
+  workflow `release.yml`. Elle expire sans publication réussie dans les deux jours ;
 - **retirer `"private": true`** de `package.json`, qui est le seul garde-fou : un nom publié l'est
-  pour de bon ;
-- **décider si le dépôt devient public.** npm ne produit la provenance que pour un dépôt public :
-  s'il reste privé, retirer `--provenance` du workflow.
+  pour de bon.
+
+Si npm veut que le paquet existe avant d'accepter cette déclaration, la première version se publie
+à la main : `npm login` — sans `--scope`, qui réécrirait le registre de `@vincweb` dans
+`~/.npmrc` — puis `npm publish`.
 
 ## Licence
 
