@@ -221,9 +221,12 @@ Le paquet garde le nom `@vincweb/zeus`, sur npm public. Comme ce scope sert auss
 privés sur GitHub Packages, `publishConfig` épingle le registre du scope : sans lui, `npm publish`
 et `pnpm publish` enverraient Zeus vers le registre que `~/.npmrc` donne à `@vincweb`.
 
-Sortir une version : monter `version` dans `package.json`, puis pousser le tag `v<version>`. La
-publication de confiance est déclarée sur npmjs.com pour l'utilisateur `Vincweb`, le dépôt `zeus`
-et le workflow `release.yml` : renommer l'un des trois la casse.
+Sortir une version : monter `version` dans `package.json`, puis pousser le tag `v<version>`.
+
+La 0.1.0 a été publiée à la main. Pour que les tags publient seuls, il reste à déclarer la
+publication de confiance sur npmjs.com, dans les paramètres du paquet : utilisateur `Vincweb`,
+dépôt `zeus`, workflow `release.yml`, en y autorisant `npm publish`. Sans cette autorisation, npm
+n'accepte de ce workflow que `npm stage publish`, dont chaque version attend une approbation.
 
 Pour publier à la main : `npm login` — sans `--scope`, qui réécrirait le registre de `@vincweb`
 dans `~/.npmrc` — puis `npm publish`.
