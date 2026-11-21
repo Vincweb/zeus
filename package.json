@@ -52,6 +52,7 @@
     "test": "tsx --test 'src/**/*.test.ts'",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "readme:images": "tsx scripts/readme-images.ts",
     "check": "pnpm lint && pnpm type-check && pnpm test && pnpm build",
     "prepublishOnly": "pnpm check"
   },

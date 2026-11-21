@@ -272,7 +272,7 @@ export const Setup = ({ dir: asked }: { dir: string }) => {
             id="setup-dir"
             value={dir}
             onChange={(event) => setDir(event.target.value)}
-            placeholder="~/Documents/Programmation"
+            placeholder="~/Projets"
             spellCheck={false}
             autoComplete="off"
             className="mt-1 h-8 w-full rounded-md border border-line bg-panel px-2.5 font-mono text-[12.5px] text-text placeholder:text-faint"

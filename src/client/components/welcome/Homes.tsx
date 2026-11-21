@@ -114,7 +114,7 @@ const OpenByPath = () => {
           id="home-path"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="~/Documents/Programmation"
+          placeholder="~/Projets"
           spellCheck={false}
           autoComplete="off"
           aria-invalid={error !== null}

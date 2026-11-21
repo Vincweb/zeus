@@ -74,6 +74,9 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
 
 - **Code en anglais, texte visible en français** (page, messages de la CLI, erreurs montrées).
   Les descriptions des outils MCP sont en anglais : c'est un agent qui les lit.
+- **Le README est en anglais**, comme ceux de code-atlas et de claude-context-viewer : c'est la
+  page du paquet sur npm. Ses images (`docs/media`) sortent de `pnpm readme:images`, qui lance le
+  vrai Zeus sur une flotte inventée (`scripts/demo-fleet.ts`) — jamais de capture d'une vraie flotte.
 - **Lire n'écrit rien.** `status` ne fait ni fetch ni écriture ; « en retard » se juge sur le
   commit de tête de la branche par défaut que GitHub annonce, comparé à ce que le clone contient.
 - **GitHub coûte cher à interroger.** La liste d'un compte (noms, drapeaux) est rapide ; le détail

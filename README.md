@@ -1,252 +1,312 @@
-# Zeus
+<div align="center">
 
-Suivre et piloter une flotte de repos git depuis une page locale : les repos de tes comptes GitHub,
-leurs clones sur la machine, de quoi les cloner et les mettre à jour, et les outils transverses qui
-vont avec.
+<img src="docs/media/banner.png" alt="zeus" width="640">
+
+**Follow and steer a fleet of git repositories.**
+
+The repositories of your GitHub accounts and their clones on this machine: which are behind,
+where uncommitted work is lying around, what CI says. Clone and update in one click, install the
+tools your projects share — and hand the whole picture to Claude Code as an MCP server.
+
+[![npm](https://img.shields.io/npm/v/@vincweb/zeus?style=flat-square&label=npm&labelColor=08090b&color=f2b01e)](https://www.npmjs.com/package/@vincweb/zeus)
+[![release](https://img.shields.io/github/v/release/Vincweb/zeus?style=flat-square&label=release&labelColor=08090b&color=f2b01e)](https://github.com/Vincweb/zeus/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/Vincweb/zeus/ci.yml?branch=main&style=flat-square&label=CI&labelColor=08090b&color=f2b01e)](https://github.com/Vincweb/zeus/actions/workflows/ci.yml)
+[![node](https://img.shields.io/badge/node-%E2%89%A5%2020-f2b01e?style=flat-square&labelColor=08090b)](package.json)
+[![runtime dependencies](https://img.shields.io/badge/runtime%20deps-0-f2b01e?style=flat-square&labelColor=08090b)](package.json)
+[![license](https://img.shields.io/badge/license-MIT-f2b01e?style=flat-square&labelColor=08090b)](LICENSE)
+
+</div>
+
+<br>
+
+<div align="center">
+<img src="docs/media/fleet.png" alt="The fleet of a parent folder: one tab per GitHub account, six figures — 19 repositories followed, 10 to clone, 3 behind, 2 with uncommitted changes, 2 to push, 3 with a failing CI — what to do next, and the table of repositories with the clone, state, CI and last commit of each" width="960">
+</div>
+
+<div align="center"><sup>Every picture here is taken against an invented fleet.</sup></div>
+
+<br>
 
 ```sh
-npx @vincweb/zeus            # ouvre la page
+npx @vincweb/zeus            # open the page on your fleet
+npx @vincweb/zeus status     # the same state, as a table in the terminal
 ```
 
-Il lui faut Node 20 ou plus, `git`, et [`gh`](https://cli.github.com) connecté à ton compte
-(`gh auth login`). Aucune dépendance à l'exécution.
+## Why
 
-Un scope npm n'a qu'un registre par machine. Là où `~/.npmrc` envoie `@vincweb` ailleurs que sur
-npm — vers GitHub Packages, pour des paquets privés — la commande ci-dessus répond 404, et il faut
-nommer le registre :
+git guards a repository. Nothing guards the thirty you have: the ones on your own account and the
+ones of each organization you belong to, some cloned here, some never, a few weeks behind, one
+holding work you forgot to commit. On a new machine it all starts over, from memory.
+
+Zeus asks for one thing — **the parent folder** of your projects — and reads everything else where
+it lives: your accounts from `gh`, your repositories from GitHub, your clones from a scan of that
+folder. There is nothing to list and nothing to sort, so there is nothing to keep in step.
+
+The page and the command line speak French for now.
+
+## Install
+
+```sh
+npx @vincweb/zeus                  # run it once
+npm install -g @vincweb/zeus       # or keep the `zeus` command around
+```
+
+It needs Node 20 or newer, `git`, and [`gh`](https://cli.github.com) signed in to your account
+(`gh auth login`). No runtime dependency. It serves `http://127.0.0.1:4900` and opens it in your
+browser: on your fleet when started in a followed folder or anywhere beneath it, otherwise on a
+welcome page that takes you through choosing one. Zeus keeps no token: it sees exactly what your
+`gh` login may see.
+
+An npm scope has one registry per machine. Where `~/.npmrc` sends `@vincweb` somewhere other than
+npm — to GitHub Packages, for private packages — the command above answers 404, and the registry
+has to be named:
 
 ```sh
 npx --@vincweb:registry=https://registry.npmjs.org @vincweb/zeus
 ```
 
-Pour travailler sur Zeus lui-même, il se lance depuis les sources :
+| Command                               | What it does                                                |
+| ------------------------------------- | ----------------------------------------------------------- |
+| `zeus`                                | opens the page: on your fleet, otherwise on the welcome     |
+| `zeus init [dir]`                     | makes a folder the parent folder (`.zeus/`)                 |
+| `zeus status [--workspace <account>]` | the state of every repository, as a table                   |
+| `zeus status --json [--full]`         | the same as one document — for a script or an agent         |
+| `zeus clone <repo> [--into <dir>]`    | clones a followed repository, in the folder of its account  |
+| `zeus update <repo>…` / `--all`       | fetch, then fast-forward wherever nothing stands in the way |
+| `zeus install <tool> [--repo <repo>]` | installs a cross-project tool                               |
+| `zeus mcp`                            | serves the fleet to an agent (MCP, on stdio)                |
 
-```sh
-pnpm install && pnpm build
-node dist/cli.js             # depuis le dossier de tes projets, ou n'importe où dessous
-pnpm link --global           # ou : la commande `zeus`, partout sur cette machine
-```
+| Option             | Default                                       | What it does                                                         |
+| ------------------ | --------------------------------------------- | -------------------------------------------------------------------- |
+| `-r, --root <dir>` | `ZEUS_ROOT`, else the folder holding `.zeus/` | the parent folder                                                    |
+| `-p, --port <n>`   | `4900`, or the next free one                  | the page's port                                                      |
+| `--host <host>`    | `127.0.0.1`                                   | the interface to listen on                                           |
+| `--no-open`        |                                               | do not open the browser                                              |
+| `--full`           |                                               | with `status`: also wait for the CI and pull requests of a large org |
 
-## Le modèle : un dossier parent, et rien à classer
+## The model: one parent folder, nothing to sort
 
-Zeus ne demande qu'une chose : **le dossier parent** de tes projets. Tout le reste est lu là où il
-vit, et rien n'est tenu à la main :
+| What                        | Where it comes from                                                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| your **workspaces**         | `gh`: your account, and every organization you belong to                                                        |
+| the **repositories** of one | GitHub: the ones that account owns                                                                              |
+| the **clones**              | a scan of the parent folder, each clone matched to its repository by its `origin` remote — never by folder name |
+| where a **new clone** goes  | `<parent folder>/<account>/<repo>`: GitHub's own organization, mirrored on disk                                 |
 
-| Quoi                         | D'où ça vient                                                                                                            |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| tes **workspaces**           | de `gh` : ton compte, et chaque organisation dont tu fais partie                                                         |
-| les **repos** d'un workspace | de GitHub : ceux que ce compte possède                                                                                   |
-| les **clones**               | d'un scan du dossier parent, chaque clone rattaché à son repo par son remote `origin` — jamais par le nom de son dossier |
-| où va un **nouveau clone**   | dans `<dossier parent>/<compte>/<repo>` : l'organisation de GitHub, reproduite sur le disque                             |
-
-Il n'y a donc pas de seconde organisation à garder alignée sur la première : un repo de `acme` est
-dans le workspace `acme`, et s'il est au mauvais endroit, ça se corrige sur GitHub. Les clones
-existants ne bougent pas — Zeus les retrouve où qu'ils soient sous le dossier parent.
+So there is no second organization to keep aligned with the first: a repository of `acme` is in
+the `acme` workspace, and if it is in the wrong place, that is fixed on GitHub. Existing clones do
+not move — Zeus finds them wherever they are under the parent folder.
 
 ### `.zeus/`
 
-`zeus init` (ou la page, la première fois) pose un dossier `.zeus/` à la racine du dossier parent.
-Il **marque** la racine : lancé dans n'importe quel sous-dossier, Zeus remonte jusqu'à lui, comme
-git jusqu'à `.git`. Aucun chemin n'est donc écrit nulle part, et le même dossier fonctionne tel
-quel sur une autre machine.
+`zeus init` (or the page, the first time) puts a `.zeus/` folder at the root of the parent folder.
+It **marks** the root: started in any folder beneath it, Zeus walks up to it, the way git walks up
+to `.git`. No path is written anywhere, so the same folder works as it is on another machine.
 
-Il peut rester vide. `.zeus/config.json`, facultatif, ne contient que ce que personne d'autre ne
-peut savoir :
+It can stay empty. `.zeus/config.json`, optional, holds only what nobody else can know:
 
 ```json
 {
-  "hiddenOwners": ["une-grosse-org"],
-  "folders": { "Vincweb": "perso" },
+  "hiddenOwners": ["a-very-large-org"],
+  "folders": { "ada": "perso" },
   "tools": [
     {
-      "id": "mon-outil",
+      "id": "my-tool",
       "scope": "repo",
-      "run": "npx mon-outil",
-      "install": { "kind": "dev-dependency", "package": "mon-outil" },
-      "detect": { "dependency": "mon-outil" }
+      "run": "npx my-tool",
+      "install": { "kind": "dev-dependency", "package": "my-tool" },
+      "detect": { "dependency": "my-tool" }
     }
   ]
 }
 ```
 
-- **hiddenOwners** — des comptes que `gh` voit et que ce dossier laisse de côté. Se règle aussi
-  depuis la page (« Comptes suivis… »).
-- **folders** — le dossier des nouveaux clones d'un compte, quand ce n'est pas le nom du compte.
-- **tools** — des outils transverses en plus de ceux par défaut (code-atlas,
-  claude-context-viewer) ; un outil qui reprend l'`id` d'un outil par défaut le remplace.
+- **hiddenOwners** — accounts `gh` sees and this folder leaves out. Also set from the page
+  (« Comptes suivis… »).
+- **folders** — the folder new clones of an account go to, when it is not the account's name.
+- **tools** — cross-project tools on top of the default ones (code-atlas, claude-context-viewer);
+  a tool that reuses the `id` of a default one replaces it.
 - **scanDepth** (3), **includeArchived** (`false`).
 
-## Les outils transverses
+## The page
 
-Zeus liste les outils qui servent à plusieurs projets, dit où chacun est en place, et l'installe
-d'un clic. Un outil a une portée (`scope`) et, pour le clic, une recette (`install`) :
+<div align="center">
+<img src="docs/media/welcome.png" alt="The welcome page: what Zeus is, a drawing of a fleet around its bolt with repositories up to date, behind, to push and not cloned, and the parent folders already followed on this machine — here ~/Projects, with its two workspaces" width="960">
+</div>
 
-| Recette                                                                                   | Ce qu'un clic lance                                                                                                         | Où          |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `{ "kind": "claude-plugin", "plugin": "nom@marketplace", "marketplace": "compte/depot" }` | `claude plugin marketplace add …` puis `claude plugin install …`                                                            | Claude Code |
-| `{ "kind": "npm-global", "package": "nom" }`                                              | `npm install -g nom`                                                                                                        | la machine  |
-| `{ "kind": "dev-dependency", "package": "nom" }`                                          | l'ajout en dépendance de développement, avec le gestionnaire **du repo choisi** — bun, pnpm, yarn ou npm selon son lockfile | un clone    |
+- **Welcome** — what Zeus is, the folders already followed, and how to install it elsewhere.
+  Started in a followed folder, or beneath one, Zeus opens its fleet directly.
+- **Choosing a folder** — for a machine that has never seen Zeus: `git`, `gh`, the account signed
+  in, how clones are fetched; then the parent folder; then the accounts found. Zeus observes and
+  says what to run (`gh auth login`): it signs nobody in.
+- **The fleet** — one tab per workspace, six figures that filter, the table of repositories
+  grouped by folder, the tools, and the other git folders found under the root — without a remote,
+  outside GitHub, from another account, no longer listed by GitHub — each with its reason.
 
-Une recette ne nomme qu'un paquet ou un plugin, jamais une commande : les trois formes sont fixes,
-et un nom qui n'est pas qu'un nom (`--registry=…`, `a; b`) est refusé à la lecture de la config.
-La page montre les commandes avant de les lancer, puis ce que chacune a répondu.
+<div align="center">
+<img src="docs/media/workspace.png" alt="The acme workspace: five clones — two up to date, one of them with three modified files, one to push, two behind with their update button lit — and six repositories not cloned yet, each with its CI, open pull requests and issues, and a clone button" width="960">
+</div>
 
-Dans un clone, l'installation est refusée s'il a des fichiers modifiés — pour que l'ajout reste
-lisible — et laisse `package.json` et le lockfile modifiés, à commiter dans ce repo. Un `install`
-écrit comme une simple chaîne reste une commande à copier.
+<br>
 
-Détection (`detect`) : `files` ou `dependency` dans un clone, `plugin` parmi les plugins installés
-de Claude Code, `command` sur le `PATH`.
+<div align="center">
+<img src="docs/media/setup.png" alt="Choosing a folder: this machine checked — git, the GitHub CLI, the account signed in, clones over SSH — then the parent folder, ~/Work, which will be created, then the accounts found, the user's own and one organization" width="960">
+</div>
 
-## Ce que fait Zeus — et ce qu'il ne fait pas
+A large account is listed at once and detailed afterwards: the CI and pull requests of its
+repositories that are not cloned arrive a few seconds later, without holding the page.
 
-Zeus est un **orchestrateur**. La règle qui trace la frontière :
+## Cross-project tools
 
-> Ce qui se calcule en regardant **un seul repo** appartient à l'outil de ce repo
-> ([code-atlas](https://github.com/Vincweb/code-atlas) pour un projet TypeScript).
-> Ce qui demande **plusieurs repos**, ou ne porte pas sur le code, appartient à Zeus.
+<div align="center">
+<img src="docs/media/tools.png" alt="The tools of a fleet: code-atlas in place in two repositories with a picker to install it in another, claude-context-viewer installed on the machine, a Claude Code plugin not installed with the two commands a click would run, and the git folders that are the clone of no followed repository" width="960">
+</div>
 
-Zeus sait donc quels repos existent, où sont leurs clones, s'ils sont en retard, ce que dit la CI,
-quels outils sont en place. Il ne lit ni lockfile ni code : un score, des dépendances périmées, un
-audit — c'est code-atlas qui les calcule, et Zeus qui les rassemble.
+Zeus lists the tools that serve several projects, says where each is in place, and installs it in
+one click. A tool has a `scope` and, for the click, an `install` recipe:
 
-## La page
+| Recipe                                                                                   | What a click runs                                                                                                | Where       |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- |
+| `{ "kind": "claude-plugin", "plugin": "name@marketplace", "marketplace": "owner/repo" }` | `claude plugin marketplace add …` then `claude plugin install …`                                                 | Claude Code |
+| `{ "kind": "npm-global", "package": "name" }`                                            | `npm install -g name`                                                                                            | the machine |
+| `{ "kind": "dev-dependency", "package": "name" }`                                        | the development dependency, added with the package manager **of the chosen repository** — bun, pnpm, yarn or npm | one clone   |
 
-- **Accueil** — ce qu'est Zeus, les dossiers déjà suivis, et comment l'installer ailleurs. Lancé
-  dans un dossier suivi (ou dessous), Zeus ouvre directement sa flotte.
-- **Choisir un dossier** (`/setup`) — pour une machine qui n'a jamais vu Zeus : `git`, `gh`, le
-  compte connecté, le mode de clonage ; puis le dossier parent ; puis les comptes détectés. Zeus
-  constate et dit quoi lancer (`gh auth login`) : il ne connecte personne.
-- **La flotte** (`/fleet?root=…`) — un onglet par workspace, six chiffres qui filtrent, le tableau
-  des repos rangés par dossier, les outils, et les autres dossiers git trouvés sous la racine (sans
-  remote, hors GitHub, d'un autre compte, plus listés par GitHub) avec la raison de chacun.
+A recipe only names a package or a plugin, never a command: the three forms are fixed, and a name
+that is not just a name (`--registry=…`, `a; b`) is refused when the config is read. The page shows
+the commands before running them, then what each one answered.
 
-Un gros compte est listé tout de suite et détaillé ensuite : la CI et les PR de ses repos non
-clonés arrivent quelques secondes après, sans retenir la page.
+In a clone, the installation is refused when it has modified files — so that the addition stays
+readable — and leaves `package.json` and the lockfile modified, to commit in that repository. An
+`install` written as a plain string stays a command to copy.
 
-## Commandes
+Detection (`detect`): `files` or `dependency` in a clone, `plugin` among the plugins Claude Code
+has installed, `command` on the `PATH`.
 
-| Commande                               | Effet                                                |
-| -------------------------------------- | ---------------------------------------------------- |
-| `zeus`                                 | ouvre la page : sur ta flotte, sinon sur l'accueil   |
-| `zeus init [dossier]`                  | fait d'un dossier le dossier parent (`.zeus/`)       |
-| `zeus status [--workspace <compte>]`   | l'état de chaque repo, en tableau                    |
-| `zeus status --json [--full]`          | le même, en un document — pour un script ou un agent |
-| `zeus clone <repo> [--into <dossier>]` | clone un repo suivi, dans le dossier de son compte   |
-| `zeus update <repo>…` / `--all`        | fetch, puis avance rapide là où rien ne s'y oppose   |
-| `zeus install <outil> [--repo <repo>]` | installe un outil transverse                         |
-| `zeus mcp`                             | sert la flotte à un agent (MCP, sur stdio)           |
+## What Zeus does — and does not
 
-`-r, --root <dir>` nomme le dossier parent ; à défaut `ZEUS_ROOT`, sinon celui qui contient
-`.zeus/` en remontant depuis le dossier courant.
+Zeus is an **orchestrator**. The rule that draws the line:
 
-## Avec Claude Code
+> What can be computed by looking at **one repository** belongs to that repository's own tool
+> ([code-atlas](https://github.com/Vincweb/code-atlas) for a TypeScript project).
+> What takes **several repositories**, or is not about the code, belongs to Zeus.
 
-Zeus se branche à Claude Code comme serveur MCP : une session ouverte **sur le dossier parent**
-connaît alors la flotte, au lieu de la reconstituer avec `git` et `gh`.
+So Zeus knows which repositories exist, where their clones are, whether they are behind, what CI
+says, which tools are in place. It reads neither lockfiles nor code: a score, outdated
+dependencies, an audit — code-atlas computes them, and Zeus gathers them.
+
+## Working with Claude Code
+
+Zeus plugs into Claude Code as an MCP server: a session opened **on the parent folder** then knows
+the fleet, instead of rebuilding it with `git` and `gh`.
 
 ```sh
 claude mcp add -s project zeus -- npx -y --@vincweb:registry=https://registry.npmjs.org @vincweb/zeus mcp
 ```
 
-Le registre y est nommé exprès : la commande marche alors sur toute machine, quel que soit son
-`~/.npmrc`.
+The registry is named on purpose: the command then works on any machine, whatever its `~/.npmrc`.
+`-s project` writes `.mcp.json` in the parent folder. The page gives the exact command until that
+is done, and Claude Code asks for your agreement the first time.
 
-`-s project` écrit `.mcp.json` dans le dossier parent. La page donne la commande exacte tant que
-ce n'est pas fait, et Claude Code demande ton accord la première fois.
+| Tool      | What it answers                                                                                                                                                                                             |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fleet`   | the followed repositories, one line each: workspace, path of the clone, state, changes in progress, CI, ready or not — per account (`workspace`) and filtered (`attention`, `behind`, `dirty`, `to-clone`…) |
+| `repo`    | one repository in full, and why its clone is not ready when it is not                                                                                                                                       |
+| `home`    | the workspaces, where their new clones go, the tools in place, the other git folders                                                                                                                        |
+| `update`  | fetch then fast-forward — writes to disk                                                                                                                                                                    |
+| `clone`   | clones a repository in the folder of its account — writes to disk                                                                                                                                           |
+| `install` | installs a cross-project tool, in Claude Code, on the machine or in a clone — writes to disk                                                                                                                |
 
-| Outil     | Ce qu'il répond                                                                                                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fleet`   | les repos suivis, une ligne chacun : workspace, chemin du clone, état, modifs en cours, CI, « prêt » ou non — par compte (`workspace`) et filtrable (`attention`, `behind`, `dirty`, `to-clone`…) |
-| `repo`    | un repo en entier, et pourquoi son clone n'est pas prêt quand il ne l'est pas                                                                                                                     |
-| `home`    | les workspaces, où vont leurs nouveaux clones, les outils en place, les autres dossiers git                                                                                                       |
-| `update`  | fetch puis avance rapide — écrit sur le disque                                                                                                                                                    |
-| `clone`   | clone un repo dans le dossier de son compte — écrit sur le disque                                                                                                                                 |
-| `install` | installe un outil transverse, dans Claude Code, sur la machine ou dans un clone — écrit sur le disque                                                                                             |
+The split: **Zeus says where and in what state**, Claude Code **opens the conversations**. The
+session of the parent folder is the orchestrator; to work in a repository it opens a session on
+the `path` Zeus gives it, which then loads that repository's `CLAUDE.md` and tools. Zeus starts no
+agent itself.
 
-Le partage des rôles : **Zeus dit où et dans quel état**, Claude Code **ouvre les conversations**.
-La session du dossier parent est l'orchestratrice ; pour travailler dans un repo, elle ouvre une
-session sur le `path` que Zeus lui donne, qui charge alors le `CLAUDE.md` et les outils de ce repo.
-Zeus ne lance aucun agent lui-même.
+The `.mcp.json` of the parent folder is seen from its sub-folders too: `claude mcp list`, run in a
+project, lists the `zeus` server of the folder above. The command it declares must therefore work
+from anywhere — an absolute path, or `npx` — and `zeus mcp` finds the root by walking up.
 
-Le `.mcp.json` du dossier parent est aussi vu depuis ses sous-dossiers : `claude mcp list`, lancé
-dans un projet, liste le serveur `zeus` du dossier au-dessus. La commande qu'il déclare doit donc
-marcher de partout — un chemin absolu, ou `npx` — et `zeus mcp` retrouve la racine en remontant.
+Do not put an orchestration `CLAUDE.md` at the root of the parent folder: it would be loaded in
+the sessions of every project beneath it. A skill in `.claude/skills/` has no such flaw.
 
-Ne mets pas de `CLAUDE.md` d'orchestration à la racine du dossier parent : il serait chargé dans
-les sessions de tous les projets en dessous. Une skill dans `.claude/skills/` n'a pas ce défaut.
+## Updating, without surprises
 
-## Mettre à jour, sans surprise
+Updating runs `git fetch --prune`, then a fast-forward to the branch being followed — and only a
+fast-forward. Never a merge, a rebase or a stash:
 
-« Mettre à jour » fait un `git fetch --prune`, puis une avance rapide vers la branche suivie —
-et seulement une avance rapide. Jamais de merge, de rebase ni de stash :
+| The clone                         | What happens                          |
+| --------------------------------- | ------------------------------------- |
+| clean, behind                     | moved up to the remote branch         |
+| tracked files modified            | fetched, the branch left where it was |
+| local commits **and** remote ones | fetched, reported as diverged         |
+| a branch that follows nothing     | fetched, nothing else                 |
 
-| Situation du clone                 | Ce qui se passe                         |
-| ---------------------------------- | --------------------------------------- |
-| propre, en retard                  | avancé jusqu'à la branche distante      |
-| des fichiers suivis modifiés       | récupéré, branche laissée où elle était |
-| des commits locaux **et** distants | récupéré, signalé comme divergé         |
-| une branche qui ne suit rien       | récupéré, rien d'autre                  |
+Untracked files do not stand in the way: git itself refuses the fast-forward if they were about to
+be overwritten.
 
-Des fichiers non suivis ne bloquent pas : git refuse lui-même l'avance s'ils devaient être écrasés.
+Clones are fetched over SSH when GitHub knows a key on the machine, over HTTPS otherwise — git
+then borrows the login of `gh`. It is a fact of the machine: it is observed, and written in no
+config.
 
-Les clones se font en SSH quand GitHub reconnaît une clé sur la machine, en HTTPS sinon — git
-emprunte alors la connexion de `gh`. C'est un fait de la machine : il se constate, il ne s'écrit
-dans aucune config.
+## Security
 
-## Sécurité
+The page can run `git clone` and `git fetch`: it obeys only itself.
 
-La page peut lancer `git clone` et `git fetch` : elle n'obéit qu'à elle-même.
+- The server listens on `127.0.0.1` and answers only to `localhost` (no DNS rebinding).
+- An action is a `POST` of JSON, refused to any origin but the page.
+- An action receives only an `owner/name` identifier: the URL and the path come from what the
+  server itself read on GitHub and on disk. The destination of a clone is the folder of the
+  account, an existing folder, or a few plain names checked one by one — always under the root.
+- Leaving out or following an account only names accounts your `gh` listed.
+- No shell, no prompt: a command that would ask for a password fails instead of waiting.
+- Installing a tool names a tool and, at most, a repository: what runs is the recipe the server
+  holds for that tool, in a clone it found itself.
+- Zeus keeps no token, creates no repository and pushes nothing.
 
-- Le serveur écoute sur `127.0.0.1` et ne répond qu'à `localhost` (pas de DNS rebinding).
-- Une action est un `POST` en JSON, refusé à toute autre origine que la page.
-- Une action ne reçoit qu'un identifiant `owner/name` : l'URL et le chemin viennent de ce que le
-  serveur a lui-même lu sur GitHub et sur le disque. La destination d'un clone est le dossier du
-  compte, un dossier existant, ou quelques noms simples vérifiés un à un — toujours sous la racine.
-- Écarter ou suivre un compte ne nomme que des comptes que ton `gh` a listés.
-- Aucun shell, aucune invite : une commande qui demanderait un mot de passe échoue au lieu d'attendre.
-- Installer un outil ne nomme qu'un outil et, au plus, un repo : ce qui tourne est la recette que
-  le serveur tient pour cet outil, dans un clone qu'il a lui-même trouvé.
-- Zeus ne garde aucun jeton, ne crée aucun dépôt et ne pousse rien.
-
-## Publier
-
-Même circuit que code-atlas : un tag `v*` lance `.github/workflows/release.yml`, qui vérifie,
-empaquette, crée la release GitHub avec l'archive, puis publie sur npm sans jeton (publication de
-confiance).
-
-L'archive jointe à chaque release se lance aussi sans registre : `npx <URL de l'archive>`.
-
-Le paquet garde le nom `@vincweb/zeus`, sur npm public. Comme ce scope sert aussi à des paquets
-privés sur GitHub Packages, `publishConfig` épingle le registre du scope : sans lui, `npm publish`
-et `pnpm publish` enverraient Zeus vers le registre que `~/.npmrc` donne à `@vincweb`.
-
-Sortir une version : monter `version` dans `package.json`, puis pousser le tag `v<version>`.
-
-La 0.1.0 a été publiée à la main. Pour que les tags publient seuls, il reste à déclarer la
-publication de confiance sur npmjs.com, dans les paramètres du paquet : utilisateur `Vincweb`,
-dépôt `zeus`, workflow `release.yml`, en y autorisant `npm publish`. Sans cette autorisation, npm
-n'accepte de ce workflow que `npm stage publish`, dont chaque version attend une approbation.
-
-Pour publier à la main : `npm login` — sans `--scope`, qui réécrirait le registre de `@vincweb`
-dans `~/.npmrc` — puis `npm publish`.
-
-## Licence
-
-MIT.
-
-## Développement
+## Development
 
 ```sh
-pnpm dev --root ..     # API sur :4900 avec rechargement, page sur :4901
+pnpm install
+pnpm dev --root ..     # API on :4900 with reload, page on :4901
 pnpm check             # lint, types, tests, build
+pnpm readme:images     # regenerate docs/media from the invented fleet (needs Chrome)
 ```
 
-Même squelette que claude-context-viewer et code-atlas : serveur `http` de Node sans dépendance,
-page React + Vite + Tailwind, `tsup` pour la CLI, `node:test` pour les tests.
+The same skeleton as [claude-context-viewer](https://github.com/Vincweb/claude-context-viewer)
+and [code-atlas](https://github.com/Vincweb/code-atlas): Node's own `http` server without a
+dependency, a React + Vite + Tailwind page, `tsup` for the CLI, `node:test` for the tests.
 
-## Et ensuite
+The pictures come from `scripts/readme-images.ts`: the built Zeus, run for real in a throwaway
+home over real git clones, with a stand-in for `gh` that answers from `scripts/demo-fleet.ts` —
+no account or repository of that fleet is real, and nothing reaches GitHub.
 
-- lancer `code-atlas --check --format json` sur chaque repo et afficher les scores ;
-- les services autour des repos : déploiements, quotas ;
-- un bilan « prêt à changer de machine » : ce qui n'est pas encore sur GitHub.
+### Publishing
+
+A `v*` tag starts `.github/workflows/release.yml`, which checks, packs, creates the GitHub Release
+with the tarball, then publishes to npm without a token (trusted publishing). The tarball attached
+to each release also runs without a registry: `npx <URL of the tarball>`.
+
+The package keeps the name `@vincweb/zeus`, on public npm. As that scope also serves private
+packages on GitHub Packages, `publishConfig` pins the registry of the scope: without it,
+`npm publish` and `pnpm publish` would send Zeus to the registry `~/.npmrc` gives `@vincweb`.
+
+To release: raise `version` in `package.json`, then push the tag `v<version>`.
+
+0.1.0 was published by hand. For tags to publish on their own, trusted publishing is still to be
+declared on npmjs.com, in the package settings: user `Vincweb`, repository `zeus`, workflow
+`release.yml`, with `npm publish` allowed. Without that permission, npm only accepts
+`npm stage publish` from the workflow, each version then waiting for an approval.
+
+To publish by hand: `npm login` — without `--scope`, which would rewrite the registry of
+`@vincweb` in `~/.npmrc` — then `npm publish`. The workflow points the pictures of this README at
+the tag's raw files before packing, since a package page does not resolve relative paths; a
+publication by hand has to do the same first, or the page shows no picture.
+
+## Next
+
+- run `code-atlas --check --format json` on each repository and show the scores;
+- the services around the repositories: deployments, quotas;
+- a « ready to change machines » report: what is not on GitHub yet.
+
+## License
+
+MIT
