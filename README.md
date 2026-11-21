@@ -5,7 +5,7 @@ leurs clones sur la machine, de quoi les cloner et les mettre à jour, et les ou
 vont avec.
 
 ```sh
-npx @vincweb/zeus            # ouvre la page — une fois le paquet publié
+npx @vincweb/zeus            # ouvre la page
 ```
 
 Il lui faut Node 20 ou plus, `git`, et [`gh`](https://cli.github.com) connecté à ton compte
@@ -19,8 +19,7 @@ nommer le registre :
 npx --@vincweb:registry=https://registry.npmjs.org @vincweb/zeus
 ```
 
-Tant que le paquet n'est pas publié — `package.json` porte `"private": true`, exprès — il se lance
-depuis les sources :
+Pour travailler sur Zeus lui-même, il se lance depuis les sources :
 
 ```sh
 pnpm install && pnpm build
@@ -147,7 +146,6 @@ Zeus se branche à Claude Code comme serveur MCP : une session ouverte **sur le 
 connaît alors la flotte, au lieu de la reconstituer avec `git` et `gh`.
 
 ```sh
-# une fois le paquet publié
 claude mcp add -s project zeus -- npx -y --@vincweb:registry=https://registry.npmjs.org @vincweb/zeus mcp
 ```
 
@@ -215,25 +213,20 @@ La page peut lancer `git clone` et `git fetch` : elle n'obéit qu'à elle-même.
 
 Même circuit que code-atlas : un tag `v*` lance `.github/workflows/release.yml`, qui vérifie,
 empaquette, crée la release GitHub avec l'archive, puis publie sur npm sans jeton (publication de
-confiance, à configurer une fois sur npmjs.com pour ce dépôt).
+confiance).
 
-L'archive se lance déjà sans registre : `npx <URL de l'archive>`, ou
-`npx --package <archive> zeus`.
+L'archive jointe à chaque release se lance aussi sans registre : `npx <URL de l'archive>`.
 
 Le paquet garde le nom `@vincweb/zeus`, sur npm public. Comme ce scope sert aussi à des paquets
 privés sur GitHub Packages, `publishConfig` épingle le registre du scope : sans lui, `npm publish`
 et `pnpm publish` enverraient Zeus vers le registre que `~/.npmrc` donne à `@vincweb`.
 
-Avant le premier tag, il reste à :
+Sortir une version : monter `version` dans `package.json`, puis pousser le tag `v<version>`. La
+publication de confiance est déclarée sur npmjs.com pour l'utilisateur `Vincweb`, le dépôt `zeus`
+et le workflow `release.yml` : renommer l'un des trois la casse.
 
-- **déclarer la publication de confiance** sur npmjs.com : utilisateur `Vincweb`, dépôt `zeus`,
-  workflow `release.yml`. Elle expire sans publication réussie dans les deux jours ;
-- **retirer `"private": true`** de `package.json`, qui est le seul garde-fou : un nom publié l'est
-  pour de bon.
-
-Si npm veut que le paquet existe avant d'accepter cette déclaration, la première version se publie
-à la main : `npm login` — sans `--scope`, qui réécrirait le registre de `@vincweb` dans
-`~/.npmrc` — puis `npm publish`.
+Pour publier à la main : `npm login` — sans `--scope`, qui réécrirait le registre de `@vincweb`
+dans `~/.npmrc` — puis `npm publish`.
 
 ## Licence
 

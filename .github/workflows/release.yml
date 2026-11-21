@@ -1,8 +1,7 @@
 name: Release
 
-# Publishes on a version tag — once the package is meant to be public. Until then package.json
-# carries `"private": true`, which makes the publish step refuse: remove it on purpose, never by
-# accident. The first publication also needs npm trusted publishing set up for this repository.
+# Publishes on a version tag: the GitHub Release with its tarball, then npm — without a token, npm
+# trusting this repository and this workflow file by name.
 on:
   push:
     tags: ['v*']
@@ -35,6 +34,8 @@ jobs:
       # and `npx <that URL>` runs the built package without a registry.
       - name: Create the GitHub Release
         run: |
+          # Run again after a publish that failed, the release is already there: leave it be.
+          if gh release view "$TAG" >/dev/null 2>&1; then exit 0; fi
           gh release create "$TAG" "$FILE" --title "$TAG" --generate-notes --notes "
           Run this release without a registry:
 

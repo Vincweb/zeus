@@ -18,7 +18,7 @@ const STEPS = [
     title: 'Lancer Zeus dans le dossier de tes projets',
     text: 'Dans un dossier vide ou déjà plein : Zeus ouvre cette page et te guide.',
     command: 'npx @vincweb/zeus',
-    note: 'Pas encore possible : le paquet n’est pas publié. D’ici là, il faut cloner le dépôt de Zeus et le construire (pnpm install, pnpm build), puis lancer node dist/cli.js.',
+    note: 'Si cette machine envoie le scope @vincweb vers un autre registre (~/.npmrc), la commande répond 404 : ajoute --@vincweb:registry=https://registry.npmjs.org après npx.',
   },
 ]
 
@@ -34,7 +34,7 @@ export const Install = () => (
       </h2>
       <p className="mt-1 max-w-3xl text-[14px] leading-relaxed text-muted">
         Rien n’est à transporter : tes repos sont sur GitHub, et Zeus ne retient rien d’autre. Sur
-        un ordinateur neuf, trois commandes suffiront, puis il ne reste qu’à cloner.
+        un ordinateur neuf, trois commandes suffisent, puis il ne reste qu’à cloner.
       </p>
     </div>
     <ol className="m-0 grid list-none grid-cols-1 gap-3 p-0 md:grid-cols-3">
