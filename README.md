@@ -291,10 +291,11 @@ packages on GitHub Packages, `publishConfig` pins the registry of the scope: wit
 
 To release: raise `version` in `package.json`, then push the tag `v<version>`.
 
-0.1.0 was published by hand. For tags to publish on their own, trusted publishing is still to be
-declared on npmjs.com, in the package settings: user `Vincweb`, repository `zeus`, workflow
-`release.yml`, with `npm publish` allowed. Without that permission, npm only accepts
-`npm stage publish` from the workflow, each version then waiting for an approval.
+0.1.0 was published by hand; from 0.1.1 on, tags publish on their own. Trusted publishing is
+declared on npmjs.com, in the package settings, for user `Vincweb`, repository `zeus` and workflow
+`release.yml`, with `npm publish` allowed — renaming any of the three breaks it. Without that
+permission, npm only accepts `npm stage publish` from the workflow, each version then waiting for
+an approval.
 
 To publish by hand: `npm login` — without `--scope`, which would rewrite the registry of
 `@vincweb` in `~/.npmrc` — then `npm publish`. The workflow points the pictures of this README at
