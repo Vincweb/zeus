@@ -232,8 +232,20 @@ export const homeView = (status: StatusPayload) => ({
     repositories: workspace.hidden
       ? null
       : status.repos.filter((repo) => repo.workspace === workspace.login).length,
+    // What GitHub lists for it that this root does not follow, and so `fleet` never shows.
+    repositoriesLeftOut: workspace.hidden
+      ? null
+      : workspace.followedRepos === null
+        ? 0
+        : workspace.repoNames.filter((name) => !workspace.followedRepos?.includes(name)).length,
+    // Read-only on GitHub and not cloned here, so `fleet` leaves them out: named for the record.
+    archived: workspace.hidden
+      ? null
+      : status.archived
+          .filter((archived) => archived.workspace === workspace.login)
+          .map((archived) => archived.name),
   })),
-  archivedNotListed: status.archivedCount,
+  archivedNotListed: status.archived.length,
   tools: status.tools.map((tool) => ({
     id: tool.id,
     scope: tool.scope,

@@ -1,14 +1,22 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ActionResult, RepoStatus } from '../../shared/types'
+import type { ActionResult, RepoStatus, Workspace } from '../../shared/types'
 import { WELCOME_PATH, fleetPath } from '../../shared/routes'
-import { cloneRepo, fetchDetails, fetchStatus, saveAccounts, updateRepo } from '../api'
+import {
+  cloneRepo,
+  fetchDetails,
+  fetchStatus,
+  saveAccounts,
+  saveFollowedRepos,
+  updateRepo,
+} from '../api'
 import { orchestratorPrompt } from '../claudePrompt'
 import { clock, plural } from '../format'
-import { countsOf, ofWorkspace, select, withDetails, type Filter } from '../model'
+import { countsOf, leftOutOf, ofWorkspace, select, withDetails, type Filter } from '../model'
 import { rememberHome } from '../recent'
 import { navigate } from '../router'
 import { AccountsDialog } from './AccountsDialog'
+import { Archived } from './Archived'
 import { ClaudeActions } from './ClaudeActions'
 import { CloneAllDialog } from './CloneAllDialog'
 import { CloneDialog } from './CloneDialog'
@@ -16,9 +24,20 @@ import { NextSteps } from './NextSteps'
 import { Opening } from './Opening'
 import { Orphans } from './Orphans'
 import { RepoTable } from './RepoTable'
+import { ReposDialog } from './ReposDialog'
 import { Summary } from './Summary'
 import { Tools } from './Tools'
-import { ArrowDownIcon, BoltIcon, Button, Link, RefreshIcon, SearchIcon, Spinner, cx } from './ui'
+import {
+  ArrowDownIcon,
+  BoltIcon,
+  Button,
+  Fold,
+  Link,
+  RefreshIcon,
+  SearchIcon,
+  Spinner,
+  cx,
+} from './ui'
 
 /** How many clones are fetched at once by « Tout mettre à jour ». */
 const PARALLEL_UPDATES = 4
@@ -98,6 +117,9 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
   const [editingAccounts, setEditingAccounts] = useState(false)
   const [savingAccounts, setSavingAccounts] = useState(false)
   const [accountsError, setAccountsError] = useState<string | null>(null)
+  const [choosingRepos, setChoosingRepos] = useState<Workspace | null>(null)
+  const [savingRepos, setSavingRepos] = useState(false)
+  const [reposError, setReposError] = useState<string | null>(null)
   const [bulk, setBulk] = useState<{ label: string; done: number; total: number } | null>(null)
 
   const all = useMemo(
@@ -113,6 +135,9 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
   const single = account ?? (accounts.length === 1 ? (accounts[0] ?? null) : null)
 
   const repos = useMemo(() => ofWorkspace(all, account?.login ?? null), [all, account])
+  // What GitHub lists in the accounts shown that this root leaves out, so a partly followed
+  // organization is not read as the whole of it.
+  const leftOut = (account ? [account] : accounts).reduce((sum, one) => sum + leftOutOf(one), 0)
   const counts = useMemo(() => countsOf(repos), [repos])
   const shown = useMemo(() => select(repos, filter, search), [repos, filter, search])
   const missing = useMemo(() => repos.filter((repo) => repo.local === null), [repos])
@@ -206,6 +231,20 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
     }
   }
 
+  const saveRepos = async (login: string, repos: string[]) => {
+    setSavingRepos(true)
+    setReposError(null)
+    try {
+      await saveFollowedRepos(root, login, repos)
+      setChoosingRepos(null)
+      await refresh()
+    } catch (error) {
+      setReposError(error instanceof Error ? error.message : 'la requête a échoué')
+    } finally {
+      setSavingRepos(false)
+    }
+  }
+
   if (status.isPending) return <Opening root={root} />
 
   if (status.isError) {
@@ -231,7 +270,11 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
     )
   }
 
-  const { home, workspaces, orphans, tools, warnings, archivedCount, generatedAt } = status.data
+  const { home, workspaces, orphans, tools, warnings, archived, generatedAt } = status.data
+  // Like the table, the archived of the account in the tab — of every account under « Tous ».
+  const archivedHere = account
+    ? archived.filter((repo) => repo.workspace === account.login)
+    : archived
   const select_ = (login: string | null) => {
     setFilter('all')
     navigate(fleetPath(root, login), { replace: true })
@@ -294,6 +337,27 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         </div>
       )}
 
+      {/* What concerns the whole parent folder, folded under its header: the tabs below it are
+          about one account, and stay with the table they filter. */}
+      <div className="mt-5 flex flex-col gap-3 empty:hidden">
+        {tools.length > 0 && (
+          <Tools root={root} tools={tools} names={names} onInstalled={() => void refresh()} />
+        )}
+        {home.claude.connected && (
+          <section>
+            <Fold id="claude-title" title="Piloter avec Claude">
+              <p className="max-w-[80ch] text-[12.5px] text-muted">
+                Ce dossier est branché à Claude Code : une session ouverte ici interroge Zeus pour
+                savoir où travailler, puis ouvre une session dans le repo concerné.
+              </p>
+              <div className="mt-3 rounded-xl border border-line bg-panel p-4 shadow-card">
+                <ClaudeActions root={root} prompt={orchestratorPrompt(home)} />
+              </div>
+            </Fold>
+          </section>
+        )}
+      </div>
+
       <div
         className="mt-5 flex flex-wrap items-center gap-2"
         role="tablist"
@@ -329,6 +393,18 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         >
           Comptes suivis…
         </button>
+        {single && (
+          <button
+            type="button"
+            onClick={() => {
+              setReposError(null)
+              setChoosingRepos(single)
+            }}
+            className="text-[12px] text-accent hover:underline"
+          >
+            Repos suivis…
+          </button>
+        )}
       </div>
 
       <div className="mt-4">
@@ -361,7 +437,9 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
           {shown.length === repos.length
             ? plural(repos.length, 'repo', 'repos')
             : `${shown.length} sur ${plural(repos.length, 'repo', 'repos')}`}
-          {archivedCount > 0 && ` · ${plural(archivedCount, 'archivé masqué', 'archivés masqués')}`}
+          {archivedHere.length > 0 &&
+            ` · ${plural(archivedHere.length, 'archivé masqué', 'archivés masqués')}`}
+          {leftOut > 0 && ` · ${plural(leftOut, 'non suivi', 'non suivis')}`}
         </span>
         {details.isFetching && (
           <span className="inline-flex items-center gap-1.5 text-[12px] text-faint" role="status">
@@ -381,29 +459,12 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         />
       </div>
 
-      {tools.length > 0 && (
-        <div className="mt-8">
-          <Tools root={root} tools={tools} names={names} onInstalled={() => void refresh()} />
-        </div>
-      )}
-
-      {home.claude.connected && (
-        <section className="mt-8" aria-labelledby="claude-title">
-          <h2 id="claude-title" className="text-[14px] font-semibold">
-            Piloter avec Claude
-          </h2>
-          <p className="mt-0.5 max-w-[80ch] text-[12.5px] text-muted">
-            Ce dossier est branché à Claude Code : une session ouverte ici interroge Zeus pour
-            savoir où travailler, puis ouvre une session dans le repo concerné.
-          </p>
-          <div className="mt-3 rounded-xl border border-line bg-panel p-4 shadow-card">
-            <ClaudeActions root={root} prompt={orchestratorPrompt(home)} />
-          </div>
-        </section>
-      )}
-
-      <div className="mt-8">
+      <div className="mt-8 flex flex-col gap-6 empty:hidden">
         <Orphans orphans={orphans} />
+        <Archived
+          archived={archivedHere}
+          accounts={account === null && accounts.length > 1 ? accounts : []}
+        />
       </div>
 
       <footer className="mt-10 text-[11.5px] text-faint">
@@ -428,6 +489,17 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
           error={accountsError}
           onCancel={() => setEditingAccounts(false)}
           onSave={(hidden) => void saveFollowed(hidden)}
+        />
+      )}
+
+      {choosingRepos && (
+        <ReposDialog
+          key={choosingRepos.login}
+          account={choosingRepos}
+          saving={savingRepos}
+          error={reposError}
+          onCancel={() => setChoosingRepos(null)}
+          onSave={(repos) => void saveRepos(choosingRepos.login, repos)}
         />
       )}
 

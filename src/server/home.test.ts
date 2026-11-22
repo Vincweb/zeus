@@ -9,7 +9,9 @@ import {
   discoverHomes,
   findHome,
   folderFor,
+  followsRepo,
   loadHome,
+  saveFollowedRepos,
   saveHiddenOwners,
   toolsOf,
 } from './home'
@@ -120,4 +122,44 @@ test('opens the root of a typed path, wherever beneath it the path points', () =
   assert.ok('error' in checkHome('', null))
   assert.ok('error' in checkHome(path.join(root, 'nulle-part'), null))
   assert.ok('error' in checkHome(fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-none-')), null))
+})
+
+test('follows every repository of an account, unless the config names the ones it follows', () => {
+  const home = loadHome(homeWith({ followedRepos: { Vol7: ['Advance'] } }))
+  assert.deepEqual(home.config.followedRepos, { vol7: ['advance'] })
+  assert.ok(followsRepo(home, 'vol7', 'advance'))
+  assert.ok(followsRepo(home, 'VOL7', 'ADVANCE'))
+  assert.ok(!followsRepo(home, 'vol7', 'billing'))
+  // An account the config does not name is followed whole.
+  assert.ok(followsRepo(home, 'Vincweb', 'anything'))
+  assert.deepEqual(loadHome(homeWith()).config.followedRepos, {})
+  assert.throws(
+    () => loadHome(homeWith({ followedRepos: { vol7: ['../ailleurs'] } })),
+    /n'est pas un nom de repo/,
+  )
+})
+
+test('writes the repositories followed of an account, and nothing once all of them are', () => {
+  const root = homeWith({ hiddenOwners: ['bigorg'] })
+  const file = path.join(root, '.zeus', 'config.json')
+  saveFollowedRepos(root, 'Vol7', ['web', 'advance', 'advance'])
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), {
+    hiddenOwners: ['bigorg'],
+    followedRepos: { vol7: ['advance', 'web'] },
+  })
+  // The same account in another casing replaces its entry rather than adding one.
+  saveFollowedRepos(root, 'vol7', ['advance'])
+  saveFollowedRepos(root, 'acme', ['api'])
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), {
+    hiddenOwners: ['bigorg'],
+    followedRepos: { vol7: ['advance'], acme: ['api'] },
+  })
+  saveFollowedRepos(root, 'VOL7', null)
+  saveFollowedRepos(root, 'acme', null)
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { hiddenOwners: ['bigorg'] })
+
+  const bare = homeWith()
+  saveFollowedRepos(bare, 'vol7', ['advance'])
+  saveFollowedRepos(bare, 'vol7', null)
+  assert.ok(!fs.existsSync(path.join(bare, '.zeus', 'config.json')))
 })

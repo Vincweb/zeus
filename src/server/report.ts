@@ -14,6 +14,7 @@ const ORPHAN: Record<Orphan['reason'], string> = {
   'not-github': 'remote hors GitHub',
   'other-account': 'autre compte GitHub',
   'unknown-repo': 'repo que GitHub ne liste plus',
+  'not-followed': 'repo non suivi dans ce dossier',
   duplicate: 'autre copie d’un repo déjà suivi',
 }
 
@@ -88,7 +89,9 @@ export const renderStatus = (status: StatusPayload, only: string | null = null) 
       `CI et PR non lues pour ${unread} repos non clonés (gros compte) — « zeus status --full » les attend.`,
     )
   }
-  if (status.archivedCount > 0) lines.push('', `${status.archivedCount} repos archivés non listés.`)
+  if (status.archived.length > 0) {
+    lines.push('', `${status.archived.length} repos archivés non listés.`)
+  }
   for (const warning of warnings) lines.push('', `⚠ ${warning}`)
   return lines.join('\n')
 }
