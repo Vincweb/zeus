@@ -15,12 +15,14 @@ import {
   toolsOf,
 } from './home'
 import { isAllowedHost, isForeign, mayAct } from './host'
-import { installTool } from './install'
+import { installTool, launchOf } from './install'
 import { asArray, asRecord, asString, parseJson, type Json } from './json'
 import { checkMachine, listOwners } from './machine'
 import { createHome, describeTarget, resolveTarget } from './setup'
 import { MISSING_CLIENT, clientIsBuilt, devPage, serveClientFile } from './static'
 import { collectDetails, collectStatus } from './status'
+import { canOpenTerminal, openTerminal } from './terminal'
+import { readToolVersions } from './versions'
 
 const json = (response: http.ServerResponse, payload: unknown, status = 200) => {
   response.writeHead(status, {
@@ -219,10 +221,67 @@ export const serveZeus = ({
           root,
           repoId: repo?.id ?? null,
           clone: repo?.local ?? null,
+          update: body.update === true,
         })
         // What is in place has changed: the next status must not be the one kept from before.
         known.delete(root)
         return result
+      }
+
+      // A tool launched in a terminal, on a click. The request names a tool and at most a
+      // repository; the line comes from the tool's recipe and the folder from this server's own
+      // status — a project's tool only in a clone where it is in place.
+      case '/api/tools/run': {
+        const body = await bodyOf(request)
+        const root = rootOf(asString(body.root))
+        if (!canOpenTerminal()) {
+          throw new Refusal(
+            501,
+            'ouvrir un terminal d’un clic ne marche que sur macOS pour l’instant',
+          )
+        }
+        const tool = toolsOf(loadHome(root)).find(
+          (candidate) => candidate.id === asString(body.tool),
+        )
+        if (!tool) throw new Refusal(404, `aucun outil ne s'appelle ${asString(body.tool) ?? ''}`)
+        const words = launchOf(tool)
+        if (!words) {
+          throw new Refusal(
+            400,
+            tool.scope === 'claude-plugin'
+              ? `${tool.name} est un plugin : il tourne dans Claude Code`
+              : `${tool.name} ne se lance pas d’un clic : sa commande est à copier`,
+          )
+        }
+        const current = await knownStatus(root)
+        const standing = current.tools.find((candidate) => candidate.id === tool.id)
+        let dir = root
+        if (tool.scope === 'repo') {
+          const repoId = asString(body.repo)
+          const repo = current.repos.find((candidate) => candidate.id === repoId)
+          if (!repo?.local || !standing?.repos.includes(repo.id)) {
+            throw new Refusal(400, `choisis un repo cloné où ${tool.name} est en place`)
+          }
+          dir = repo.local.path
+        } else if (standing?.installed !== true) {
+          throw new Refusal(400, `${tool.name} n’est pas installé sur cette machine`)
+        }
+        try {
+          await openTerminal(dir, words)
+        } catch (error) {
+          throw new Refusal(
+            502,
+            error instanceof Error ? error.message : 'Terminal ne s’est pas ouvert',
+          )
+        }
+        return { opened: true, command: words.join(' ') }
+      }
+
+      // How the installed tools compare with their latest release: npm and GitHub are asked, so
+      // it comes apart from the status, once the page is on screen.
+      case '/api/tools/versions': {
+        const root = rootOf(url.searchParams.get('root'))
+        return { versions: await readToolVersions(toolsOf(loadHome(root))) }
       }
 
       // Which accounts a root follows: all of them, minus the ones named here.

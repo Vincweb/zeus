@@ -1,10 +1,11 @@
 import path from 'path'
-import type { RepoStatus, StatusPayload } from '../../shared/types'
+import type { RepoStatus, StatusPayload, ToolVersion } from '../../shared/types'
 import { cloneRepo, updateRepo } from '../actions'
 import { mapLimit } from '../exec'
 import { ConfigError, MARKER, expandTilde, findHome, loadHome, toolsOf } from '../home'
 import { installTool } from '../install'
 import { collectStatus } from '../status'
+import { readToolVersions } from '../versions'
 import { FILTERS, type FleetFilter, type ToolName } from './tools'
 
 /** What each tool of `zeus mcp` answers; the catalogue is in tools.ts, the protocol in index.ts. */
@@ -220,7 +221,7 @@ export const repoView = (status: StatusPayload, repo: RepoStatus) => {
 }
 
 /** The parent folder as the `home` tool answers it. */
-export const homeView = (status: StatusPayload) => ({
+export const homeView = (status: StatusPayload, versions: Record<string, ToolVersion> = {}) => ({
   root: status.home.root,
   signedInAs: status.home.login,
   cloneProtocol: status.home.cloneProtocol,
@@ -250,7 +251,11 @@ export const homeView = (status: StatusPayload) => ({
     id: tool.id,
     scope: tool.scope,
     installed: tool.installed,
-    version: tool.version,
+    version: versions[tool.id]?.installed ?? tool.version,
+    // Machine tools and plugins only: a project's tool is kept current by that project.
+    ...(versions[tool.id]
+      ? { latestVersion: versions[tool.id]?.latest, upToDate: !versions[tool.id]?.outdated }
+      : {}),
     inPlaceIn: tool.repos,
     ...(tool.run ? { run: tool.run } : {}),
     // What `install` would run, and — for a tool that lives in a project — where it could.
@@ -286,8 +291,14 @@ const answer = async (ctx: McpContext, name: ToolName, params: Params): Promise<
       const status = await read(ctx, params)
       return repoView(status, find(status, stringOf(params, 'repo')))
     }
-    case 'home':
-      return homeView(await read(ctx, params))
+    case 'home': {
+      const status = await read(ctx, params)
+      // npm and GitHub are only asked when the agent wants to know: offline, they take seconds.
+      return homeView(
+        status,
+        params.versions === true ? await readToolVersions(status.tools) : undefined,
+      )
+    }
     case 'update': {
       const status = await read(ctx, params, false)
       const names = Array.isArray(params.repos)

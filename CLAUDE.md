@@ -56,7 +56,9 @@ src/server/
   actions.ts            clone, mise à jour (fetch + avance rapide)
   setup.ts              faire d'un dossier un dossier parent
   tools.ts              où chaque outil est en place
-  install.ts            les recettes d'installation : lecture, plan, exécution
+  install.ts            les recettes d'installation : lecture, plan, exécution, mise à jour, lancement
+  terminal.ts           ouvrir Terminal sur un outil (macOS)
+  versions.ts           les outils de la machine et de Claude Code sont-ils à jour
   selfCommand.ts        la commande qui relance ce Zeus, pour un prompt donné à un agent
   mcp/                  `zeus mcp` : index (protocole stdio), tools (catalogue), calls (réponses)
   host.ts               qui a le droit de lire, qui a le droit d'agir
@@ -88,10 +90,18 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
 - **Mettre à jour n'avance que tout droit** : fetch puis `merge --ff-only`. Jamais de merge, de
   rebase, de stash, de reset.
 - **Pas de shell, pas d'invite** : tout passe par `exec` (`execFile`, délai, invites coupées).
+  Une seule exception, voulue : « Lancer » un outil ouvre Terminal (macOS) sur une ligne que
+  l'utilisateur voit tourner et peut arrêter (`terminal.ts`). Le dossier et les mots y arrivent en
+  arguments, cités par AppleScript (`quoted form of`), jamais collés dans le script.
 - **Une config ne nomme jamais une commande.** Ce qu'un clic lance vient d'un petit nombre de
   formes fixes (`InstallRecipe`) ; la config n'y met qu'un nom de paquet ou de plugin, validé à la
   lecture. Une nouvelle sorte d'installation est une nouvelle forme dans `install.ts`, pas un champ
-  libre. Dans un clone, on n'installe que s'il est propre, et on dit ce qui reste à commiter.
+  libre. Dans un clone, on n'installe que s'il est propre, et on dit ce qui reste à commiter. Ce
+  que « Lancer » tape se déduit aussi de la recette (`launchOf`) : le `run` d'une config est
+  seulement montré, à copier.
+- **« À jour » ne vaut que pour la machine et Claude Code** (`versions.ts`, à part du statut : npm
+  et GitHub sont interrogés). La version d'un outil dans un projet relève des dépendances de ce
+  projet — voir « Frontière ».
 - **Aucun jeton stocké**, rien d'écrit sur GitHub : Zeus lit avec le `gh` de l'utilisateur,
   constate, et montre la commande (`gh auth login`) quand il manque quelque chose.
 - **Claude est invité, jamais lancé** : un prompt ouvert dans l'app, rempli et non envoyé

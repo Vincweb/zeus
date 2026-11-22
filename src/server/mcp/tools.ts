@@ -95,11 +95,19 @@ export const TOOLS = [
   {
     name: 'home',
     description:
-      'The parent folder itself: its workspaces (the GitHub accounts gh can see, followed or left out, how many of their repositories this root leaves out, their archived repositories that are not cloned, and the folder new clones of each go to), how clones are fetched on this machine, the cross-project tools and where each is in place, and the git folders under the root that are not clones of a followed repository, each with the reason.',
+      'The parent folder itself: its workspaces (the GitHub accounts gh can see, followed or left out, how many of their repositories this root leaves out, their archived repositories that are not cloned, and the folder new clones of each go to), how clones are fetched on this machine, the cross-project tools, where each is in place and, with `versions`, whether those of the machine and of Claude Code have a later release, and the git folders under the root that are not clones of a followed repository, each with the reason.',
     annotations: READ_ONLY,
     inputSchema: {
       type: 'object',
-      properties: { root: ROOT, refresh: REFRESH },
+      properties: {
+        root: ROOT,
+        refresh: REFRESH,
+        versions: {
+          type: 'boolean',
+          description:
+            'Also ask npm and GitHub whether the tools of the machine and the Claude Code plugins have a later release. A few seconds; off by default.',
+        },
+      },
       additionalProperties: false,
     },
   },

@@ -8,6 +8,7 @@ import { ConfigError } from './errors'
 import type { ExecResult } from './exec'
 import {
   installTool,
+  launchOf,
   packageManagerOf,
   planInstall,
   previewInstall,
@@ -171,4 +172,83 @@ test('names the registry that answered 404, which is where a scope sent elsewher
   assert.equal(registryHint('npm error code EACCES'), null)
   // A port or a version that merely holds the digits is not a 404.
   assert.equal(registryHint('added 1404 packages'), null)
+})
+
+test('launches a tool from its recipe, never from the free text of its config', () => {
+  assert.deepEqual(launchOf(tool({ kind: 'dev-dependency', package: '@vincweb/code-atlas' })), [
+    'npx',
+    '@vincweb/code-atlas',
+  ])
+  const viewer = (command: string) => ({
+    ...tool({ kind: 'npm-global', package: 'viewer' }),
+    scope: 'machine' as const,
+    detect: { command },
+  })
+  assert.deepEqual(launchOf(viewer('claude-context-viewer')), ['claude-context-viewer'])
+  // A program name only: a path, an option or a second command is not launched.
+  for (const command of ['/bin/sh', '-rf', 'viewer; rm -rf ~', 'a b']) {
+    assert.equal(launchOf(viewer(command)), null, command)
+  }
+  assert.equal(launchOf(tool({ kind: 'claude-plugin', plugin: 'p@m' })), null)
+  assert.equal(launchOf({ ...tool(undefined), run: 'rm -rf ~' }), null)
+})
+
+test('updates a machine package to its latest, a plugin after its catalog, and never a project', async () => {
+  const global = recorder()
+  const updated = await installTool(
+    tool({ kind: 'npm-global', package: 'claude-context-viewer' }),
+    { root: '/root', repoId: null, clone: null, update: true },
+    global.run,
+  )
+  assert.deepEqual(
+    global.calls.map((call) => call.line),
+    ['npm install -g claude-context-viewer@latest'],
+  )
+  assert.equal(updated.message, 'mis à jour pour toute la machine')
+
+  const catalog = 'claude plugin marketplace update caudron'
+  const plugin = recorder({ [catalog]: failed('offline') })
+  const result = await installTool(
+    tool({ kind: 'claude-plugin', plugin: 'caudron-plugin@caudron' }),
+    { root: '/root', repoId: null, clone: null, update: true },
+    plugin.run,
+  )
+  assert.deepEqual(
+    plugin.calls.map((call) => call.line),
+    [catalog, 'claude plugin update caudron-plugin@caudron'],
+  )
+  assert.equal(result.ok, true)
+
+  const project = recorder()
+  const refused = await installTool(
+    tool({ kind: 'dev-dependency', package: 'code-atlas' }),
+    { root: '/root', repoId: 'acme/app', clone: null, update: true },
+    project.run,
+  )
+  assert.equal(refused.ok, false)
+  assert.deepEqual(project.calls, [])
+})
+
+test('launches Claude Code, updates it with its own command, and never runs its installer', async () => {
+  const claude = { ...tool(toRecipe({ kind: 'claude-code' }, 'test')), scope: 'machine' as const }
+  assert.deepEqual(launchOf(claude), ['claude'])
+  const update = recorder()
+  const updated = await installTool(
+    claude,
+    { root: '/root', repoId: null, clone: null, update: true },
+    update.run,
+  )
+  assert.deepEqual(
+    update.calls.map((call) => call.line),
+    ['claude update'],
+  )
+  assert.equal(updated.ok, true)
+  const install = recorder()
+  const refused = await installTool(
+    claude,
+    { root: '/root', repoId: null, clone: null },
+    install.run,
+  )
+  assert.equal(refused.ok, false)
+  assert.deepEqual(install.calls, [])
 })

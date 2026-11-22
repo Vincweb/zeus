@@ -6,6 +6,7 @@ import {
   cloneRepo,
   fetchDetails,
   fetchStatus,
+  fetchToolVersions,
   saveAccounts,
   saveFollowedRepos,
   updateRepo,
@@ -106,6 +107,14 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
     queryFn: () => fetchDetails(root),
     enabled: pending > 0,
     staleTime: Infinity,
+  })
+  // How the installed tools compare with their latest release: npm and GitHub are asked, so it
+  // comes once the page is up, and is kept a while.
+  const toolVersions = useQuery({
+    queryKey: ['tool-versions', root],
+    queryFn: () => fetchToolVersions(root),
+    enabled: status.isSuccess,
+    staleTime: 10 * 60 * 1000,
   })
 
   const [filter, setFilter] = useState<Filter>('all')
@@ -337,12 +346,8 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         </div>
       )}
 
-      {/* What concerns the whole parent folder, folded under its header: the tabs below it are
-          about one account, and stay with the table they filter. */}
+      {/* Driving the fleet from Claude, folded under the header: it is about the whole folder. */}
       <div className="mt-5 flex flex-col gap-3 empty:hidden">
-        {tools.length > 0 && (
-          <Tools root={root} tools={tools} names={names} onInstalled={() => void refresh()} />
-        )}
         {home.claude.connected && (
           <section>
             <Fold id="claude-title" title="Piloter avec Claude">
@@ -410,6 +415,22 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
       <div className="mt-4">
         <Summary counts={counts} filter={filter} onFilter={setFilter} />
       </div>
+
+      {tools.length > 0 && (
+        <div className="mt-4">
+          <Tools
+            root={root}
+            tools={tools}
+            names={names}
+            terminal={home.terminal}
+            versions={toolVersions.data?.versions ?? {}}
+            onInstalled={() => {
+              void refresh()
+              void queryClient.invalidateQueries({ queryKey: ['tool-versions', root] })
+            }}
+          />
+        </div>
+      )}
 
       <div className="mt-5 empty:hidden">
         <NextSteps

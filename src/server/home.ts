@@ -45,6 +45,18 @@ const SCOPES: ToolScope[] = ['repo', 'machine', 'claude-plugin']
 /** The tools every fleet gets. A `tools` list in the config adds to them. */
 export const DEFAULT_TOOLS: ToolConfig[] = [
   {
+    id: 'claude-code',
+    name: 'Claude Code',
+    description:
+      'L’agent qui travaille dans tes repos ; Zeus lui répond par MCP. « Lancer » l’ouvre sur le dossier parent.',
+    url: 'https://claude.com/claude-code',
+    scope: 'machine',
+    run: 'claude',
+    install: { kind: 'claude-code' },
+    installHint: 'curl -fsSL https://claude.ai/install.sh | bash',
+    detect: { command: 'claude' },
+  },
+  {
     id: 'code-atlas',
     name: 'code-atlas',
     description:

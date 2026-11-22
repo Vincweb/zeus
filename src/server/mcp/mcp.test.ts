@@ -151,6 +151,7 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
     cloneProtocol: 'ssh',
     statusCommand: 'zeus status --json',
     claude: { connected: false, connectCommand: 'claude mcp add zeus' },
+    terminal: false,
     version: '9.9.9',
   },
   workspaces: [
@@ -201,6 +202,8 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
       repos: ['Vincweb/clean'],
       installCommands: [],
       installable: [],
+      launch: 'npx @vincweb/code-atlas',
+      updateCommands: [],
     },
   ],
   archived: ['old-site', 'vieux-blog'].map((name) => ({
@@ -306,6 +309,15 @@ test('gives one repository in full, and the parent folder with its accounts', ()
     ],
   )
   assert.equal(home.archivedNotListed, 2)
+  // Versions only when asked for: npm and GitHub are not called on every `home`.
+  assert.ok(!('latestVersion' in (home.tools[0] ?? {})))
+  const versioned = homeView(fleet, {
+    'code-atlas': { installed: '0.4.0', latest: '0.5.0', outdated: true },
+  })
+  const [first] = versioned.tools as Record<string, unknown>[]
+  assert.equal(first?.version, '0.4.0')
+  assert.equal(first?.latestVersion, '0.5.0')
+  assert.equal(first?.upToDate, false)
   assert.equal(home.workspaces[1]?.newClonesGoTo, '/fleet/acme')
   assert.deepEqual(home.otherGitFolders, [
     { path: '/fleet/stray', reason: 'no-remote', uncommittedFiles: 2 },

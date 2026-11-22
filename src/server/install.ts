@@ -50,8 +50,10 @@ export const toRecipe = (value: unknown, where: string): InstallRecipe | undefin
       return { kind: 'npm-global', package: named('package', PACKAGE, 'un nom de paquet npm') }
     case 'dev-dependency':
       return { kind: 'dev-dependency', package: named('package', PACKAGE, 'un nom de paquet npm') }
+    case 'claude-code':
+      return { kind: 'claude-code' }
     default:
-      return refuse('"kind" doit valoir claude-plugin, npm-global ou dev-dependency')
+      return refuse('"kind" doit valoir claude-plugin, npm-global, dev-dependency ou claude-code')
   }
 }
 
@@ -121,7 +123,66 @@ export const planInstall = (recipe: InstallRecipe, dir: string): Step[] => {
           cwd: dir,
         },
       ]
+    case 'claude-code':
+      // Its installer is a script piped to a shell: shown to copy, never run from here.
+      return []
   }
+}
+
+/**
+ * What updating a tool comes down to: the latest release of a machine-wide package, the latest of
+ * a plugin from its marketplace. Null for a development dependency: what a project depends on, and
+ * in which version, is that project's business (see CLAUDE.md, « Frontière »).
+ */
+export const planUpdate = (recipe: InstallRecipe, dir: string): Step[] | null => {
+  switch (recipe.kind) {
+    case 'npm-global':
+      return [{ command: 'npm', args: ['install', '-g', `${recipe.package}@latest`], cwd: dir }]
+    case 'claude-plugin':
+      return [
+        // The catalog first: an update only sees what the marketplace last said.
+        {
+          command: 'claude',
+          args: [
+            'plugin',
+            'marketplace',
+            'update',
+            recipe.plugin.slice(recipe.plugin.indexOf('@') + 1),
+          ],
+          cwd: dir,
+          optional: true,
+        },
+        { command: 'claude', args: ['plugin', 'update', recipe.plugin], cwd: dir },
+      ]
+    case 'dev-dependency':
+      return null
+    case 'claude-code':
+      return [{ command: 'claude', args: ['update'], cwd: dir }]
+  }
+}
+
+export const previewUpdate = (recipe: InstallRecipe): string[] =>
+  planUpdate(recipe, '.')?.map(displayOf) ?? []
+
+/** A program as it is typed: a plain name, never a path and never an option. */
+const COMMAND = /^[a-z0-9][a-z0-9._-]*$/i
+
+/**
+ * What « Lancer » types in a terminal, word by word. It comes from the recipe, whose names were
+ * checked when the config was read — never from the free `run` text, which is only ever shown. A
+ * project's tool runs through `npx`, which finds the clone's own copy; a machine-wide one by the
+ * program its package puts on the PATH. Null for the rest: a plugin runs inside Claude Code.
+ */
+export const launchOf = (tool: ToolConfig): string[] | null => {
+  const recipe = tool.install
+  if (recipe?.kind === 'dev-dependency') return ['npx', recipe.package]
+  // In the parent folder, whose `.mcp.json` hands it Zeus.
+  if (recipe?.kind === 'claude-code') return ['claude']
+  const command = tool.detect?.command
+  if (recipe?.kind === 'npm-global' && command !== undefined && COMMAND.test(command)) {
+    return [command]
+  }
+  return null
 }
 
 /** What a click would run, to show beforehand. A development dependency is shown in its npm form. */
@@ -151,11 +212,19 @@ type Runner = (
 /** A dependency tree can take a while to resolve; past this, something is stuck. */
 const INSTALL_TIMEOUT_MS = 5 * 60 * 1000
 
+const UPDATED: Record<InstallRecipe['kind'], string> = {
+  'claude-plugin': 'mis à jour — redémarre Claude Code pour le charger',
+  'npm-global': 'mis à jour pour toute la machine',
+  'dev-dependency': '',
+  'claude-code': 'à jour — les prochaines sessions de Claude Code prennent cette version',
+}
+
 const DONE: Record<InstallRecipe['kind'], (where: string, manager: string) => string> = {
   'claude-plugin': () => 'installé — redémarre Claude Code pour le charger',
   'npm-global': () => 'installé pour toute la machine',
   'dev-dependency': (where, manager) =>
     `ajouté à ${where} avec ${manager} — package.json et le lockfile sont modifiés, à commiter là-bas`,
+  'claude-code': () => '',
 }
 
 /**
@@ -179,7 +248,12 @@ export const registryHint = (output: string): string | null => {
  */
 export const installTool = async (
   tool: ToolConfig,
-  { root, repoId, clone }: { root: string; repoId: string | null; clone: LocalRepo | null },
+  {
+    root,
+    repoId,
+    clone,
+    update = false,
+  }: { root: string; repoId: string | null; clone: LocalRepo | null; update?: boolean },
   run: Runner = exec,
 ): Promise<InstallResult> => {
   const refused = (message: string): InstallResult => ({
@@ -192,6 +266,17 @@ export const installTool = async (
   const recipe = tool.install
   if (!recipe)
     return refused('cet outil n’a pas de recette d’installation : sa commande est à copier')
+
+  if (update) {
+    const plan = planUpdate(recipe, root)
+    if (!plan) {
+      return refused('un outil de projet se met à jour dans le projet, avec ses autres dépendances')
+    }
+    return runPlan(tool.id, null, recipe, plan, UPDATED[recipe.kind], run)
+  }
+  if (recipe.kind === 'claude-code') {
+    return refused('Claude Code s’installe avec son propre installeur : sa commande est à copier')
+  }
 
   let dir = root
   if (recipe.kind === 'dev-dependency') {
@@ -209,8 +294,27 @@ export const installTool = async (
     dir = clone.path
   }
 
+  return runPlan(
+    tool.id,
+    repoId,
+    recipe,
+    planInstall(recipe, dir),
+    DONE[recipe.kind](clone?.relativePath ?? '', packageManagerOf(dir)),
+    run,
+  )
+}
+
+/** Runs the steps of a plan in order, and stops at the first one that fails and matters. */
+const runPlan = async (
+  tool: string,
+  repo: string | null,
+  recipe: InstallRecipe,
+  plan: Step[],
+  done: string,
+  run: Runner,
+): Promise<InstallResult> => {
   const steps: InstallStep[] = []
-  for (const step of planInstall(recipe, dir)) {
+  for (const step of plan) {
     const result = await run(step.command, step.args, {
       cwd: step.cwd,
       timeoutMs: INSTALL_TIMEOUT_MS,
@@ -224,19 +328,13 @@ export const installTool = async (
     if (!result.ok && !step.optional) {
       const hint = recipe.kind === 'claude-plugin' ? null : registryHint(tailOf(result))
       return {
-        tool: tool.id,
-        repo: repoId,
+        tool,
+        repo,
         ok: false,
         steps,
         message: `« ${displayOf(step)} » a échoué${hint ? ` : ${hint}` : ''}`,
       }
     }
   }
-  return {
-    tool: tool.id,
-    repo: repoId,
-    ok: true,
-    steps,
-    message: DONE[recipe.kind](clone?.relativePath ?? '', packageManagerOf(dir)),
-  }
+  return { tool, repo, ok: true, steps, message: done }
 }

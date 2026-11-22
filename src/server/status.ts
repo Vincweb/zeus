@@ -18,6 +18,7 @@ import { asArray, asRecord, parseJson } from './json'
 import { findRepos, hasCommit, readLocalRepo } from './local'
 import { cloneProtocol, listOwners } from './machine'
 import { connectCommand, statusCommandFor } from './selfCommand'
+import { canOpenTerminal } from './terminal'
 import { readTools } from './tools'
 
 /**
@@ -323,6 +324,7 @@ export const collectStatus = async (
       cloneProtocol: protocol,
       statusCommand: statusCommandFor(home.root),
       claude: { connected: isConnected(home.root), connectCommand: connectCommand() },
+      terminal: canOpenTerminal(),
       version,
     },
     workspaces,
