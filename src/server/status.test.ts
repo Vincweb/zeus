@@ -60,6 +60,24 @@ test('says why every other git folder is not the clone of a followed repository'
   )
 })
 
+test('says that a clone of a repository the root does not follow is left out, not gone', () => {
+  const { clones, orphans } = sortClones(
+    [
+      clone('acme/billing', 'git@github.com:acme/billing.git', 'acme/billing'),
+      clone('acme/api', 'git@github.com:acme/api.git', 'acme/api'),
+    ],
+    remotes,
+    followed,
+    readable,
+    new Set(['acme/billing']),
+  )
+  assert.deepEqual([...clones.keys()], ['acme/api'])
+  assert.deepEqual(
+    orphans.map(({ repo, reason }) => [repo.relativePath, reason]),
+    [['acme/billing', 'not-followed']],
+  )
+})
+
 test('judges "behind" on what GitHub holds before the counts of the last fetch', () => {
   const local = (ahead: number | null, behind: number | null) => ({ ahead, behind }) as LocalRepo
   assert.equal(syncOf(null, false), 'not-cloned')

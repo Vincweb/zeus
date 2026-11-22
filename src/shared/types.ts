@@ -85,6 +85,13 @@ export type Workspace = {
   folder: string
   /** Left out of the fleet by the config of this root. */
   hidden: boolean
+  /**
+   * What can be followed of it: the names of the repositories GitHub lists for it, archived ones
+   * only when the root shows them. Empty for an account left out, which GitHub is not asked about.
+   */
+  repoNames: string[]
+  /** The ones this root follows, when not all of them. Null: every one, those to come included. */
+  followedRepos: string[] | null
 }
 
 /** One followed repository: GitHub's side, the clone when there is one, and how they compare. */
@@ -111,8 +118,27 @@ export type OrphanReason =
   | 'other-account'
   /** A GitHub origin under a followed account, which GitHub no longer lists: renamed, or gone. */
   | 'unknown-repo'
+  /** The repository of a followed account that this root does not follow. */
+  | 'not-followed'
   /** A second checkout of a repository already matched to another folder. */
   | 'duplicate'
+
+/**
+ * An archived repository the table leaves out: read-only on GitHub and not cloned here. All of it
+ * comes with the listing of its account — nothing more is asked of GitHub for it.
+ */
+export type ArchivedRepo = {
+  /** `owner/name`, in GitHub's casing. */
+  id: string
+  workspace: string
+  name: string
+  description: string
+  url: string
+  language: string | null
+  isPrivate: boolean
+  /** The last push to any branch. */
+  pushedAt: string | null
+}
 
 /** A git folder under the root that is not the clone of a followed repository. */
 export type Orphan = { repo: LocalRepo; reason: OrphanReason }
@@ -218,8 +244,8 @@ export type StatusPayload = {
   repos: RepoStatus[]
   orphans: Orphan[]
   tools: ToolStatus[]
-  /** Archived repositories left out of `repos`. */
-  archivedCount: number
+  /** Archived repositories left out of `repos`, listed at the end of the page for the record. */
+  archived: ArchivedRepo[]
   /** Repositories listed but not detailed yet: their CI and counts are still to come. */
   pendingDetails: number
   /** What could not be read: an account GitHub refused, a signed-out gh. */

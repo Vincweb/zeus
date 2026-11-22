@@ -1,4 +1,11 @@
-import type { RepoDetail, RepoStatus } from '../shared/types'
+import type { RepoDetail, RepoStatus, Workspace } from '../shared/types'
+
+/** How many repositories GitHub lists for an account that the root does not follow. */
+export const leftOutOf = (workspace: Workspace) => {
+  if (workspace.followedRepos === null) return 0
+  const followed = new Set(workspace.followedRepos)
+  return workspace.repoNames.filter((name) => !followed.has(name)).length
+}
 
 /** What the tiles above the table narrow it to. */
 export type Filter = 'all' | 'to-clone' | 'behind' | 'dirty' | 'ahead' | 'ci'

@@ -108,6 +108,7 @@ It can stay empty. `.zeus/config.json`, optional, holds only what nobody else ca
 ```json
 {
   "hiddenOwners": ["a-very-large-org"],
+  "followedRepos": { "another-org": ["the-one-project"] },
   "folders": { "ada": "perso" },
   "tools": [
     {
@@ -123,6 +124,9 @@ It can stay empty. `.zeus/config.json`, optional, holds only what nobody else ca
 
 - **hiddenOwners** — accounts `gh` sees and this folder leaves out. Also set from the page
   (« Comptes suivis… »).
+- **followedRepos** — for an account whose repositories are not all followed, the ones that are.
+  An account not named here is followed whole, repositories to come included. Also set from the
+  page (« Repos suivis… »).
 - **folders** — the folder new clones of an account go to, when it is not the account's name.
 - **tools** — cross-project tools on top of the default ones (code-atlas, claude-context-viewer);
   a tool that reuses the `id` of a default one replaces it.
@@ -139,9 +143,11 @@ It can stay empty. `.zeus/config.json`, optional, holds only what nobody else ca
 - **Choosing a folder** — for a machine that has never seen Zeus: `git`, `gh`, the account signed
   in, how clones are fetched; then the parent folder; then the accounts found. Zeus observes and
   says what to run (`gh auth login`): it signs nobody in.
-- **The fleet** — one tab per workspace, six figures that filter, the table of repositories
-  grouped by folder, the tools, and the other git folders found under the root — without a remote,
-  outside GitHub, from another account, no longer listed by GitHub — each with its reason.
+- **The fleet** — the tools and the way to drive it from Claude, folded under the header; one tab
+  per workspace, six figures that filter, the table of repositories grouped by folder, then two
+  folded lists: the other git folders found under the root — without a remote, outside GitHub,
+  from another account, not followed, no longer listed by GitHub — each with its reason, and the
+  archived repositories that are not cloned.
 
 <div align="center">
 <img src="docs/media/workspace.png" alt="The acme workspace: five clones — two up to date, one of them with three modified files, one to push, two behind with their update button lit — and six repositories not cloned yet, each with its CI, open pull requests and issues, and a clone button" width="960">

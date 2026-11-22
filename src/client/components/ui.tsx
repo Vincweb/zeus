@@ -65,6 +65,37 @@ export const CopyIcon = icon(
   </>,
 )
 export const CheckIcon = icon(<path d="m3.5 8.5 3 3 6-7" />)
+export const ChevronIcon = icon(<path d="m6 3.5 4.5 4.5L6 12.5" />)
+
+/**
+ * A section folded away until asked for: its title, how many it holds, and what in it may matter.
+ * For what is there for the record rather than for every look.
+ */
+export const Fold = ({
+  id,
+  title,
+  count,
+  note,
+  children,
+}: {
+  id: string
+  title: string
+  count?: number
+  note?: ReactNode
+  children: ReactNode
+}) => (
+  <details className="group">
+    <summary className="flex cursor-pointer list-none items-center gap-2 select-none [&::-webkit-details-marker]:hidden">
+      <ChevronIcon className="shrink-0 text-faint transition-transform group-open:rotate-90" />
+      <h2 id={id} className="text-[14px] font-semibold">
+        {title}
+      </h2>
+      {count !== undefined && <span className="text-[12px] text-muted tabular-nums">{count}</span>}
+      {note}
+    </summary>
+    <div className="mt-1.5">{children}</div>
+  </details>
+)
 export const BranchIcon = icon(
   <>
     <circle cx="4.5" cy="3.5" r="1.5" />

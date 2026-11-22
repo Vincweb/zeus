@@ -154,9 +154,34 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
     version: '9.9.9',
   },
   workspaces: [
-    { login: 'Vincweb', kind: 'user', label: 'Perso', folder: 'Vincweb', hidden: false },
-    { login: 'acme', kind: 'org', label: 'acme', folder: 'acme', hidden: false },
-    { login: 'BigOrg', kind: 'org', label: 'BigOrg', folder: 'BigOrg', hidden: true },
+    {
+      login: 'Vincweb',
+      kind: 'user',
+      label: 'Perso',
+      folder: 'Vincweb',
+      hidden: false,
+      repoNames: [],
+      followedRepos: null,
+    },
+    {
+      login: 'acme',
+      kind: 'org',
+      label: 'acme',
+      folder: 'acme',
+      hidden: false,
+      // A large organization of which this root follows one repository.
+      repoNames: ['api', 'billing', 'web'],
+      followedRepos: ['api'],
+    },
+    {
+      login: 'BigOrg',
+      kind: 'org',
+      label: 'BigOrg',
+      folder: 'BigOrg',
+      hidden: true,
+      repoNames: [],
+      followedRepos: null,
+    },
   ],
   repos,
   orphans: [
@@ -178,7 +203,16 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
       installable: [],
     },
   ],
-  archivedCount: 3,
+  archived: ['old-site', 'vieux-blog'].map((name) => ({
+    id: `Vincweb/${name}`,
+    workspace: 'Vincweb',
+    name,
+    description: '',
+    url: `https://github.com/Vincweb/${name}`,
+    language: null,
+    isPrivate: false,
+    pushedAt: null,
+  })),
   pendingDetails: 0,
   warnings: [],
 })
@@ -262,13 +296,16 @@ test('gives one repository in full, and the parent folder with its accounts', ()
       workspace.login,
       workspace.followed,
       workspace.repositories,
+      workspace.repositoriesLeftOut,
+      workspace.archived,
     ]),
     [
-      ['Vincweb', true, 5],
-      ['acme', true, 1],
-      ['BigOrg', false, null],
+      ['Vincweb', true, 5, 0, ['old-site', 'vieux-blog']],
+      ['acme', true, 1, 2, []],
+      ['BigOrg', false, null, null, null],
     ],
   )
+  assert.equal(home.archivedNotListed, 2)
   assert.equal(home.workspaces[1]?.newClonesGoTo, '/fleet/acme')
   assert.deepEqual(home.otherGitFolders, [
     { path: '/fleet/stray', reason: 'no-remote', uncommittedFiles: 2 },

@@ -100,3 +100,14 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
   à travers un tube serait tronqué.
 - **Pas de dépendance à l'exécution** : la CLI publiée n'embarque que du Node.
 - Les actions se testent sur des repos jetables (`actions.test.ts`), jamais sur de vrais clones.
+
+## Ce qui reste à faire
+
+- **Une idée pour plus tard devient une issue GitHub** (`gh issue create --repo Vincweb/zeus`) :
+  une amélioration suggérée, un défaut repéré en passant, un point remis à plus tard. Pas de fichier
+  de roadmap ni de TODO dans le code : ils vieillissent, une issue se ferme avec le PR qui la règle.
+  Avant d'en ouvrir une, `gh issue list` pour ne pas la doubler.
+- **Le repo est public** : une issue décrit le problème avec une flotte inventée. Elle ne nomme ni
+  compte, ni organisation, ni repo de la vraie flotte de quelqu'un, et n'en donne pas les chiffres.
+- Une issue est rédigée en français, comme les commits : le constat, ce qui est proposé, et ce dont
+  elle dépend si ce n'est pas encore sur `main`.

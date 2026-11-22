@@ -4,7 +4,16 @@ import type { ActionResult, HomesPayload, Owner, StatusPayload } from '../shared
 import { claudeLink, fleetPath } from '../shared/routes'
 import { cloneRepo, updateRepo } from './actions'
 import { openInBrowser, openUrl, pageUrl } from './browser'
-import { ConfigError, checkHome, discoverHomes, loadHome, saveHiddenOwners, toolsOf } from './home'
+import { listOwnerRepos } from './github'
+import {
+  ConfigError,
+  checkHome,
+  discoverHomes,
+  loadHome,
+  saveFollowedRepos,
+  saveHiddenOwners,
+  toolsOf,
+} from './home'
 import { isAllowedHost, isForeign, mayAct } from './host'
 import { installTool } from './install'
 import { asArray, asRecord, asString, parseJson, type Json } from './json'
@@ -228,6 +237,44 @@ export const serveZeus = ({
         )
         known.delete(root)
         return { hidden }
+      }
+
+      // Which repositories of a followed account a root follows: the ones named here, or all of
+      // them when every one is. Only a name GitHub lists for that account is ever written.
+      case '/api/accounts/repos': {
+        const body = await bodyOf(request)
+        const root = rootOf(asString(body.root))
+        const home = loadHome(root)
+        const [login = ''] = await knownLogins([asString(body.login) ?? ''])
+        if (home.config.hiddenOwners.includes(login.toLowerCase())) {
+          throw new Refusal(400, `${login} n'est pas suivi dans ce dossier`)
+        }
+        const { listed, error } = await listOwnerRepos(login, GITHUB_GOOD_FOR_MS)
+        if (listed.length === 0 && error) {
+          throw new Refusal(502, `GitHub n'a pas listé les repos de ${login} : ${error}`)
+        }
+        const names = new Map(listed.map(({ repo }) => [repo.name.toLowerCase(), repo.name]))
+        const asked = loginsOf(body.repos)
+        const stranger = asked.find((name) => !names.has(name.toLowerCase()))
+        if (stranger !== undefined) {
+          throw new Refusal(400, `${stranger} n'est pas un repo de ${login}`)
+        }
+        if (asked.length === 0) {
+          throw new Refusal(
+            400,
+            `coche au moins un repo — pour ne rien suivre de ${login}, décoche le compte`,
+          )
+        }
+        const kept = new Set(asked.map((name) => name.toLowerCase()))
+        // Every repository the page offered is ticked: the whole account, those to come included.
+        const offered =
+          (await knownStatus(root)).workspaces.find((workspace) => workspace.login === login)
+            ?.repoNames ?? []
+        const all = offered.every((name) => kept.has(name.toLowerCase()))
+        const repos = all ? null : [...kept].map((name) => names.get(name) ?? name)
+        saveFollowedRepos(root, login, repos)
+        known.delete(root)
+        return { login, repos }
       }
 
       // Setting a root up: what the machine has, where the projects are, who can be followed.

@@ -18,6 +18,11 @@ export const CONFIG_FILE = 'config.json'
 export type HomeConfig = {
   /** Accounts `gh` can see that this root leaves out. */
   hiddenOwners: string[]
+  /**
+   * The repositories followed of an account, by lowercased login and name, when not all of them
+   * are. An account not named here is followed whole, those to come included.
+   */
+  followedRepos: Record<string, string[]>
   /** The folder new clones of an account go to, when it is not the account's own name. */
   folders: Record<string, string>
   scanDepth: number
@@ -117,6 +122,25 @@ const toFolders = (value: unknown) => {
   return folders
 }
 
+/** A repository name as GitHub allows it. */
+export const REPO_NAME = /^[A-Za-z0-9._-]{1,100}$/
+
+const toFollowedRepos = (value: unknown) => {
+  const followed: Record<string, string[]> = {}
+  for (const [login, names] of Object.entries(asRecord(value) ?? {})) {
+    if (!Array.isArray(names)) continue
+    const list: unknown[] = names
+    const bad = list.find((name) => typeof name !== 'string' || !REPO_NAME.test(name))
+    if (bad !== undefined) {
+      throw new ConfigError(
+        `${MARKER}/${CONFIG_FILE} : followedRepos.${login} — ${JSON.stringify(bad)} n'est pas un nom de repo`,
+      )
+    }
+    followed[login.toLowerCase()] = list.map((name) => String(name).toLowerCase())
+  }
+  return followed
+}
+
 export const isHome = (dir: string) => isDirectory(path.join(dir, MARKER))
 
 /** The root a folder belongs to: itself, or the nearest folder above it that holds `.zeus/`. */
@@ -151,6 +175,7 @@ export const loadHome = (root: string): Home => {
     root,
     config: {
       hiddenOwners: stringsOf(config.hiddenOwners).map((login) => login.toLowerCase()),
+      followedRepos: toFollowedRepos(config.followedRepos),
       folders: toFolders(config.folders),
       scanDepth: Number.isInteger(depth) && depth >= 1 && depth <= 6 ? depth : 3,
       includeArchived: config.includeArchived === true,
@@ -169,17 +194,45 @@ export const toolsOf = (home: Home): ToolConfig[] => {
 export const folderFor = (home: Home, login: string) =>
   home.config.folders[login.toLowerCase()] ?? login
 
-/**
- * Sets which accounts a root leaves out, keeping everything else the config holds. The file is
- * only written when there is something to say; with nothing hidden and nothing else, there is none.
- */
+/** Whether a root follows a repository of an account it follows: every one, unless it names some. */
+export const followsRepo = (home: Home, owner: string, name: string) => {
+  const only = home.config.followedRepos[owner.toLowerCase()]
+  return only === undefined || only.includes(name.toLowerCase())
+}
+
+/** The file is only written when there is something to say; with nothing to say, there is none. */
+const writeConfig = (root: string, config: Record<string, unknown>) => {
+  const file = configPath(root)
+  if (Object.keys(config).length === 0) fs.rmSync(file, { force: true })
+  else fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`)
+}
+
+/** Sets which accounts a root leaves out, keeping everything else the config holds. */
 export const saveHiddenOwners = (root: string, hidden: string[]) => {
   const config = readConfig(root)
   if (hidden.length > 0) config.hiddenOwners = [...hidden].sort((a, b) => a.localeCompare(b))
   else delete config.hiddenOwners
-  const file = configPath(root)
-  if (Object.keys(config).length === 0) fs.rmSync(file, { force: true })
-  else fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`)
+  writeConfig(root, config)
+}
+
+/**
+ * Sets which repositories of an account a root follows — `null` for every one, those to come
+ * included — keeping everything else the config holds.
+ */
+export const saveFollowedRepos = (root: string, login: string, names: string[] | null) => {
+  const config = readConfig(root)
+  const key = login.toLowerCase()
+  const followed = Object.fromEntries(
+    Object.entries(asRecord(config.followedRepos) ?? {}).filter(
+      ([other]) => other.toLowerCase() !== key,
+    ),
+  )
+  if (names !== null) {
+    followed[key] = [...new Set(names)].sort((a, b) => a.localeCompare(b))
+  }
+  if (Object.keys(followed).length > 0) config.followedRepos = followed
+  else delete config.followedRepos
+  writeConfig(root, config)
 }
 
 export const expandTilde = (value: string) =>

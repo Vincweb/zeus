@@ -74,6 +74,10 @@ export const updateRepo = (root: string, id: string) =>
 export const saveAccounts = (root: string, hidden: string[]) =>
   post<{ hidden: string[] }>('/api/accounts', { root, hidden })
 
+/** The repositories of an account to follow; the server turns « all of them » into « every one ». */
+export const saveFollowedRepos = (root: string, login: string, repos: string[]) =>
+  post<{ login: string; repos: string[] | null }>('/api/accounts/repos', { root, login, repos })
+
 /** What this machine has of what Zeus needs: git, gh, an account, a way to clone. */
 export const fetchMachine = () => request<MachineCheck>('/api/machine')
 

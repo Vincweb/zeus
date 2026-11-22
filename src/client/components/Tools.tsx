@@ -2,7 +2,17 @@ import { useState } from 'react'
 import type { InstallResult, ToolStatus } from '../../shared/types'
 import { installTool } from '../api'
 import { plural } from '../format'
-import { Badge, Button, CheckIcon, Command, CrossIcon, DownloadIcon, cx, type Tone } from './ui'
+import {
+  Badge,
+  Button,
+  CheckIcon,
+  Command,
+  CrossIcon,
+  DownloadIcon,
+  Fold,
+  cx,
+  type Tone,
+} from './ui'
 
 const SCOPES: Record<ToolStatus['scope'], string> = {
   repo: 'Par projet',
@@ -156,57 +166,74 @@ export const Tools = ({
   names: Map<string, string>
   /** Something was installed: what is in place has to be read again. */
   onInstalled: () => void
-}) => (
-  <section aria-labelledby="tools-title">
-    <h2 id="tools-title" className="text-[14px] font-semibold">
-      Outils transverses
-    </h2>
-    <p className="mt-0.5 text-[12.5px] text-muted">
-      Ceux de Zeus, plus ceux que <span className="font-mono">.zeus/config.json</span> ajoute. Zeus
-      regarde où ils sont en place, et les installe d’un clic — en montrant d’abord ce qu’il lance.
-    </p>
-    <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-      {tools.map((tool) => {
-        const state = stateOf(tool)
-        return (
-          <article
-            key={tool.id}
-            className="rounded-xl border border-line bg-panel p-3.5 shadow-card"
-          >
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              {tool.url ? (
-                <a
-                  href={tool.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[13.5px] font-semibold hover:text-accent hover:underline"
-                >
-                  {tool.name}
-                </a>
-              ) : (
-                <span className="text-[13.5px] font-semibold">{tool.name}</span>
-              )}
-              <Badge tone={state.tone}>{state.label}</Badge>
-            </div>
-            <div className="mt-0.5 text-[11.5px] text-faint">{SCOPES[tool.scope]}</div>
-            {tool.description && (
-              <p className="mt-1.5 text-[12.5px] text-muted">{tool.description}</p>
-            )}
-            {tool.repos.length > 0 && (
-              <p className="mt-1.5 text-[12px] text-muted">
-                {tool.repos.map((id) => names.get(id) ?? id).join(', ')}
-              </p>
-            )}
-            {tool.run && <Command label="Lancer" command={tool.run} />}
-            {tool.install ? (
-              <Install root={root} tool={tool} names={names} onInstalled={onInstalled} />
-            ) : (
-              tool.installHint &&
-              tool.installed !== true && <Command label="Installer" command={tool.installHint} />
-            )}
-          </article>
-        )
-      })}
-    </div>
-  </section>
-)
+}) => {
+  // What the folded title says: a tool of the machine, or of Claude Code, that is missing.
+  const missing = tools.filter((tool) => tool.scope !== 'repo' && tool.installed === false).length
+  return (
+    <section>
+      <Fold
+        id="tools-title"
+        title="Outils transverses"
+        count={tools.length}
+        note={
+          missing > 0 && (
+            <Badge tone="warn">
+              {missing} pas installé{missing > 1 ? 's' : ''}
+            </Badge>
+          )
+        }
+      >
+        <p className="text-[12.5px] text-muted">
+          Ceux de Zeus, plus ceux que <span className="font-mono">.zeus/config.json</span> ajoute.
+          Zeus regarde où ils sont en place, et les installe d’un clic — en montrant d’abord ce
+          qu’il lance.
+        </p>
+        <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+          {tools.map((tool) => {
+            const state = stateOf(tool)
+            return (
+              <article
+                key={tool.id}
+                className="rounded-xl border border-line bg-panel p-3.5 shadow-card"
+              >
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {tool.url ? (
+                    <a
+                      href={tool.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[13.5px] font-semibold hover:text-accent hover:underline"
+                    >
+                      {tool.name}
+                    </a>
+                  ) : (
+                    <span className="text-[13.5px] font-semibold">{tool.name}</span>
+                  )}
+                  <Badge tone={state.tone}>{state.label}</Badge>
+                </div>
+                <div className="mt-0.5 text-[11.5px] text-faint">{SCOPES[tool.scope]}</div>
+                {tool.description && (
+                  <p className="mt-1.5 text-[12.5px] text-muted">{tool.description}</p>
+                )}
+                {tool.repos.length > 0 && (
+                  <p className="mt-1.5 text-[12px] text-muted">
+                    {tool.repos.map((id) => names.get(id) ?? id).join(', ')}
+                  </p>
+                )}
+                {tool.run && <Command label="Lancer" command={tool.run} />}
+                {tool.install ? (
+                  <Install root={root} tool={tool} names={names} onInstalled={onInstalled} />
+                ) : (
+                  tool.installHint &&
+                  tool.installed !== true && (
+                    <Command label="Installer" command={tool.installHint} />
+                  )
+                )}
+              </article>
+            )
+          })}
+        </div>
+      </Fold>
+    </section>
+  )
+}

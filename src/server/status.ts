@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import type {
+  ArchivedRepo,
   DetailsPayload,
   LocalRepo,
   Orphan,
@@ -12,7 +13,7 @@ import type {
 } from '../shared/types'
 import { mapLimit } from './exec'
 import { fetchDetails, knownDetail, listOwnerRepos, type ListedRepo } from './github'
-import { folderFor, tilde, toolsOf, type Home } from './home'
+import { folderFor, followsRepo, tilde, toolsOf, type Home } from './home'
 import { asArray, asRecord, parseJson } from './json'
 import { findRepos, hasCommit, readLocalRepo } from './local'
 import { cloneProtocol, listOwners } from './machine'
@@ -73,13 +74,15 @@ const ownerOf = (githubId: string) => githubId.slice(0, githubId.indexOf('/'))
  *
  * `followed` and `readable` are lowercased logins: the accounts in the fleet, and those among
  * them GitHub answered for. A clone of an account that could not be read is left out of both
- * lists: nothing true can be said of it until GitHub answers.
+ * lists: nothing true can be said of it until GitHub answers. `leftOut` are the lowercased ids of
+ * repositories GitHub lists for a followed account that the root does not follow.
  */
 export const sortClones = (
   locals: LocalRepo[],
   remotes: ReadonlyMap<string, RemoteRepo>,
   followed: ReadonlySet<string>,
   readable: ReadonlySet<string>,
+  leftOut: ReadonlySet<string> = new Set(),
 ) => {
   const clones = new Map<string, LocalRepo>()
   const orphans: Orphan[] = []
@@ -89,6 +92,7 @@ export const sortClones = (
     else if (!followed.has(ownerOf(local.githubId))) {
       orphans.push({ repo: local, reason: 'other-account' })
     } else if (!readable.has(ownerOf(local.githubId))) continue
+    else if (leftOut.has(local.githubId)) orphans.push({ repo: local, reason: 'not-followed' })
     else if (!remotes.has(local.githubId)) orphans.push({ repo: local, reason: 'unknown-repo' })
     else if (clones.has(local.githubId)) orphans.push({ repo: local, reason: 'duplicate' })
     else clones.set(local.githubId, local)
@@ -104,7 +108,45 @@ const toWorkspace = (home: Home, login: string, kind: 'user' | 'org'): Workspace
   label: kind === 'user' ? 'Perso' : login,
   folder: folderFor(home, login),
   hidden: home.config.hiddenOwners.includes(login.toLowerCase()),
+  repoNames: [],
+  followedRepos: null,
 })
+
+const byName = (a: string, b: string) => a.localeCompare(b, 'fr', { sensitivity: 'base' })
+
+/**
+ * What a listing offers to follow of an account — what the table could show: an archived
+ * repository only when the root shows them or it has a clone — and what the root follows of it.
+ * `cloned` are the lowercased ids of the clones found under the root.
+ */
+const withRepos = (
+  home: Home,
+  workspace: Workspace,
+  listed: ListedRepo[],
+  cloned: ReadonlySet<string>,
+): Workspace => {
+  const only = home.config.followedRepos[workspace.login.toLowerCase()]
+  return {
+    ...workspace,
+    repoNames: listed
+      .filter(
+        ({ repo }) =>
+          home.config.includeArchived ||
+          !repo.isArchived ||
+          cloned.has(repo.fullName.toLowerCase()),
+      )
+      .map(({ repo }) => repo.name)
+      .sort(byName),
+    // A name GitHub no longer lists is not followed: it goes at the next save.
+    followedRepos:
+      only === undefined
+        ? null
+        : listed
+            .filter(({ repo }) => followsRepo(home, repo.owner, repo.name))
+            .map(({ repo }) => repo.name)
+            .sort(byName),
+  }
+}
 
 /** Who you are on GitHub does not change between two clicks: kept this long between two reads. */
 const OWNERS_GOOD_FOR_MS = 5 * 60 * 1000
@@ -119,27 +161,50 @@ const DETAILS_GOOD_FOR_MS = 5 * 60 * 1000
  */
 const DETAILED_AT_ONCE = 60
 
-type Listed = { home: Home; workspaces: Workspace[]; listed: ListedRepo[]; warnings: string[] }
+type Listed = {
+  home: Home
+  /** The accounts, without what can be followed of them: that depends on the clones too. */
+  workspaces: Workspace[]
+  /** Everything GitHub lists for each followed account, by login. */
+  listings: ReadonlyMap<string, ListedRepo[]>
+  /** The repositories the root follows — and only those: nothing is asked about the others. */
+  listed: ListedRepo[]
+  /** Lowercased ids of what GitHub lists for a followed account that the root does not follow. */
+  leftOut: Set<string>
+  readable: Set<string>
+  warnings: string[]
+}
 
 /** The accounts `gh` can see and what GitHub lists for those a root follows. No detail yet. */
-const listFleet = async (
-  home: Home,
-  githubMaxAgeMs: number,
-): Promise<Listed & { readable: Set<string> }> => {
+const listFleet = async (home: Home, githubMaxAgeMs: number): Promise<Listed> => {
   const owners = await listOwners(githubMaxAgeMs > 0 ? OWNERS_GOOD_FOR_MS : 0)
   const warnings = owners.error ? [`GitHub n'a pas répondu : ${owners.error}`] : []
   const workspaces = owners.owners.map(({ login, kind }) => toWorkspace(home, login, kind))
-  const followed = workspaces.filter((workspace) => !workspace.hidden)
-  const listings = await Promise.all(
-    followed.map((workspace) => listOwnerRepos(workspace.login, githubMaxAgeMs)),
+  const answers = new Map(
+    await Promise.all(
+      workspaces
+        .filter((workspace) => !workspace.hidden)
+        .map(
+          async (workspace) =>
+            [workspace.login, await listOwnerRepos(workspace.login, githubMaxAgeMs)] as const,
+        ),
+    ),
   )
   const readable = new Set<string>()
-  for (const { owner, listed, error } of listings) {
+  const listed: ListedRepo[] = []
+  const leftOut = new Set<string>()
+  const listings = new Map<string, ListedRepo[]>()
+  for (const [login, { owner, listed: ofOwner, error }] of answers) {
+    listings.set(login, ofOwner)
     if (error) warnings.push(`GitHub, pour ${owner} : ${error}`)
     // A listing that came back, even cut short, is enough to sort the clones on.
-    if (listed.length > 0 || !error) readable.add(owner.toLowerCase())
+    if (ofOwner.length > 0 || !error) readable.add(owner.toLowerCase())
+    for (const entry of ofOwner) {
+      if (followsRepo(home, entry.repo.owner, entry.repo.name)) listed.push(entry)
+      else leftOut.add(entry.repo.fullName.toLowerCase())
+    }
   }
-  return { home, workspaces, listed: listings.flatMap(({ listed }) => listed), warnings, readable }
+  return { home, workspaces, listings, listed, leftOut, readable, warnings }
 }
 
 /** A repository with its detail filled in when it is known, blank and marked so when it is not. */
@@ -168,7 +233,12 @@ export const collectStatus = async (
     ),
     cloneProtocol(),
   ])
-  const { workspaces, listed, warnings, readable } = fleet
+  const { listings, listed, leftOut, warnings, readable } = fleet
+  const cloned = new Set(locals.flatMap((local) => local.githubId ?? []))
+  const workspaces = fleet.workspaces.map((workspace) => {
+    const listing = listings.get(workspace.login)
+    return listing ? withRepos(home, workspace, listing, cloned) : workspace
+  })
   const followed = workspaces.filter((workspace) => !workspace.hidden)
 
   const remotes = new Map<string, RemoteRepo>()
@@ -178,13 +248,27 @@ export const collectStatus = async (
     remotes,
     new Set(followed.map((workspace) => workspace.login.toLowerCase())),
     readable,
+    leftOut,
   )
 
-  // An archived repository still shows when it has a clone: that folder is yours to tidy.
-  const shown = listed.filter(
-    ({ repo }) =>
-      home.config.includeArchived || !repo.isArchived || clones.has(repo.fullName.toLowerCase()),
-  )
+  // An archived repository still shows when it has a clone: that folder is yours to tidy. The
+  // others are only listed, at the end of the page, with what the listing already says of them.
+  const isShown = ({ repo }: ListedRepo) =>
+    home.config.includeArchived || !repo.isArchived || clones.has(repo.fullName.toLowerCase())
+  const shown = listed.filter(isShown)
+  const archived = listed
+    .filter((entry) => !isShown(entry))
+    .map(({ repo }): ArchivedRepo => ({
+      id: repo.fullName,
+      workspace: repo.owner,
+      name: repo.name,
+      description: repo.description,
+      url: repo.url,
+      language: repo.language,
+      isPrivate: repo.isPrivate,
+      pushedAt: repo.pushedAt,
+    }))
+    .sort((a, b) => byName(a.name, b.name))
 
   // What is asked of GitHub now: every repository of a small account, the clones of a large one.
   const size = new Map<string, number>()
@@ -218,7 +302,7 @@ export const collectStatus = async (
       group: local ? folderOf(local.relativePath) : null,
     }
   })
-  repos.sort((a, b) => a.remote.name.localeCompare(b.remote.name, 'fr', { sensitivity: 'base' }))
+  repos.sort((a, b) => byName(a.remote.name, b.remote.name))
 
   // Where a new clone may go besides its account's folder: the root, and every folder that
   // already holds one.
@@ -245,7 +329,7 @@ export const collectStatus = async (
     repos,
     orphans,
     tools: readTools(toolsOf(home), repos),
-    archivedCount: listed.filter(({ repo }) => repo.isArchived).length,
+    archived,
     pendingDetails: repos.filter((repo) => !repo.remote.detailed && !repo.remote.isArchived).length,
     warnings,
   }

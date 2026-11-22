@@ -4,8 +4,9 @@ import { Badge, Button } from './ui'
 
 /**
  * Which accounts this root follows. Every account `gh` can see is a workspace by default; this
- * only leaves some out — a large organization that is noise here, say. The one thing about a
- * fleet that is a choice rather than a fact, and so the one thing `.zeus/` remembers.
+ * only leaves some out — a large organization that is noise here, say. With the repositories
+ * followed of each (`ReposDialog`), what about a fleet is a choice rather than a fact, and so what
+ * `.zeus/` remembers.
  */
 export const AccountsDialog = ({
   accounts,
