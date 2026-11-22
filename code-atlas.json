@@ -1,0 +1,282 @@
+{
+  "features": [
+    "src/client/components/Welcome.tsx",
+    "src/client/components/Setup.tsx",
+    "src/client/components/Dashboard.tsx",
+    "src/client/components/ui.tsx",
+    "src/client/components/*",
+    "src/client/api.ts",
+    "src/client/model.ts",
+    "src/client/format.ts",
+    "src/client/router.ts",
+    "src/client/recent.ts",
+    "src/client/claudePrompt.ts",
+    "src/server/*",
+    "src/server/server.ts",
+    "src/server/report.ts",
+    "src/server/journal.ts",
+    "src/server/host.ts",
+    "src/server/static.ts",
+    "src/server/browser.ts",
+    "src/server/status.ts",
+    "src/server/actions.ts",
+    "src/server/setup.ts",
+    "src/server/versions.ts",
+    "src/server/home.ts",
+    "src/server/tools.ts",
+    "src/server/install.ts",
+    "src/server/atlas.ts",
+    "src/server/github.ts",
+    "src/server/local.ts",
+    "src/server/machine.ts",
+    "src/server/terminal.ts",
+    "src/server/selfCommand.ts"
+  ],
+  "layers": [
+    { "name": "CLI", "features": ["src"] },
+    {
+      "name": "Surfaces : page, MCP, texte",
+      "siblings": true,
+      "features": ["src/server/{server,report}.ts", "src/server/mcp"]
+    },
+    {
+      "name": "Serveur de la page",
+      "siblings": true,
+      "features": ["src/server/{journal,host,static,browser}.ts"]
+    },
+    {
+      "name": "Opérations",
+      "siblings": true,
+      "features": ["src/server/{status,actions,setup,versions}.ts"]
+    },
+    {
+      "name": "Dossier parent et outils",
+      "features": ["src/server/{home,tools,install,atlas}.ts"]
+    },
+    {
+      "name": "Accès : git, GitHub, machine",
+      "siblings": true,
+      "features": ["src/server/{github,local,machine,terminal,selfCommand}.ts"]
+    },
+    { "name": "Socle du serveur", "features": ["src/server"] },
+    { "name": "Page : entrée", "features": ["src/client"] },
+    {
+      "name": "Page : écrans",
+      "siblings": true,
+      "features": ["src/client/components/{Welcome,Setup,Dashboard}.tsx"]
+    },
+    {
+      "name": "Page : morceaux d'écran",
+      "siblings": true,
+      "features": ["src/client/components", "src/client/components/welcome"]
+    },
+    { "name": "Page : interface commune", "features": ["src/client/components/ui.tsx"] },
+    {
+      "name": "Page : données et navigation",
+      "siblings": true,
+      "features": ["src/client/{api,model,format,router,recent,claudePrompt}.ts"]
+    },
+    { "name": "Contrat serveur ↔ page", "features": ["src/shared"] }
+  ],
+  "allow": [],
+  "rules": [
+    { "id": "ARCH-LAYERS", "family": "architecture", "severity": "high", "kind": "layers" },
+    { "id": "ARCH-MUTUAL", "family": "architecture", "severity": "medium", "kind": "mutual" },
+    { "id": "ARCH-SIBLINGS", "family": "architecture", "severity": "low", "kind": "siblings" },
+    { "id": "ARCH-CYCLES", "family": "architecture", "severity": "high", "kind": "no-cycle" },
+    {
+      "id": "ARCH-DOCS",
+      "family": "architecture",
+      "severity": "low",
+      "kind": "docs",
+      "features": "{src,src/client,src/client/components,src/client/components/welcome,src/server,src/server/mcp,src/shared}"
+    },
+    {
+      "id": "ARCH-PAGE-NO-SERVER",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "forbid-import",
+      "title": "La page ne connaît le serveur que par /api et le contrat src/shared",
+      "from": "src/client/**",
+      "to": "src/{cli.ts,server/**}",
+      "types": true
+    },
+    {
+      "id": "ARCH-SERVER-NO-PAGE",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "forbid-import",
+      "title": "Le serveur et la CLI n'importent rien de la page",
+      "from": "src/{cli.ts,server/**}",
+      "to": "src/client/**",
+      "types": true
+    },
+    {
+      "id": "ARCH-CONTRACT-LEAF",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "forbid-import",
+      "title": "Le contrat serveur ↔ page ne dépend de rien",
+      "from": "src/shared/**",
+      "to": "src/{cli.ts,client/**,server/**}",
+      "types": true
+    },
+    {
+      "id": "ARCH-JOURNAL-PAGE-ONLY",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "forbid-import",
+      "title": "La CLI et zeus mcp ne touchent ni au journal ni à la politique HTTP de la page",
+      "from": "src/{cli.ts,server/mcp/**}",
+      "to": "src/server/{journal,host,static}.ts"
+    },
+    {
+      "id": "ARCH-UI-NO-DATA",
+      "family": "architecture",
+      "severity": "medium",
+      "kind": "forbid-import",
+      "title": "L'interface commune ne charge pas de données",
+      "from": "src/client/components/ui.tsx",
+      "to": "src/client/api.ts"
+    },
+    {
+      "id": "ARCH-EXEC-ONLY",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "pattern",
+      "title": "Un processus se lance par exec ; seuls le journal et le navigateur font leur propre spawn",
+      "pattern": "\\bfrom\\s+'(?:node:)?child_process'",
+      "files": "src/**",
+      "exclude": "src/server/{exec,journal,browser}.ts"
+    },
+    {
+      "id": "ARCH-NO-SHELL",
+      "family": "architecture",
+      "severity": "critical",
+      "kind": "pattern",
+      "title": "Pas de shell : les arguments passent tels quels",
+      "pattern": "\\bshell\\s*:\\s*true\\b",
+      "files": "src/**"
+    },
+    {
+      "id": "ARCH-FAST-FORWARD-ONLY",
+      "family": "architecture",
+      "severity": "critical",
+      "kind": "pattern",
+      "title": "Mettre à jour n'avance que tout droit : ni rebase, ni stash, ni reset, ni merge autre que --ff-only",
+      "pattern": "'(?:rebase|stash|reset|pull|push|cherry-pick|revert)'|'merge'(?!\\s*,\\s*'--ff-only')",
+      "files": "src/server/**"
+    },
+    {
+      "id": "ARCH-GITHUB-READ-ONLY",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "pattern",
+      "title": "Rien d'écrit sur GitHub, aucun jeton lu ni gardé",
+      "pattern": "\\bmutation\\s*[({]|'(?:--method|-X)'|\\bGH_TOKEN\\b|\\bGITHUB_TOKEN\\b|'auth'\\s*,\\s*'token'",
+      "files": "src/server/**"
+    },
+    {
+      "id": "ARCH-NO-RUNTIME-DEPENDENCY",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "pattern",
+      "title": "La CLI publiée n'embarque que du Node",
+      "pattern": "\\bfrom\\s+'(?!\\.{1,2}/|node:|(?:assert|async_hooks|buffer|child_process|crypto|events|fs|http|https|net|os|path|readline|stream|string_decoder|timers|tty|url|util|zlib)(?:/[\\w/]+)?')",
+      "files": "src/{cli.ts,server/**,shared/**}"
+    },
+    {
+      "id": "ARCH-MCP-STDOUT",
+      "family": "architecture",
+      "severity": "high",
+      "kind": "pattern",
+      "title": "La sortie standard de zeus mcp est le protocole : rien d'autre n'y écrit",
+      "pattern": "\\bconsole\\.(?:log|info|debug)\\(",
+      "files": "src/server/mcp/**"
+    },
+    {
+      "id": "CC-LINES",
+      "family": "clean-code",
+      "severity": "medium",
+      "kind": "max-lines",
+      "max": 400
+    },
+    {
+      "id": "CC-COMPLEXITY",
+      "family": "clean-code",
+      "severity": "medium",
+      "kind": "complexity",
+      "max": 15
+    },
+    {
+      "id": "CC-PARAMS",
+      "family": "clean-code",
+      "severity": "low",
+      "kind": "max-params",
+      "max": 4
+    },
+    {
+      "id": "CC-ANY",
+      "family": "clean-code",
+      "severity": "high",
+      "kind": "pattern",
+      "pattern": ":\\s*any\\b|\\bas\\s+any\\b|<\\s*any\\s*>",
+      "files": "**/*.{ts,tsx}"
+    },
+    {
+      "id": "CC-SHARED-SILENT",
+      "family": "clean-code",
+      "severity": "medium",
+      "kind": "pattern",
+      "title": "Ce que partagent la CLI, la page et zeus mcp n'imprime rien",
+      "pattern": "\\bconsole\\.[a-z]+\\(",
+      "files": "src/server/**",
+      "exclude": "src/server/{server.ts,journal.ts,mcp/index.ts}"
+    },
+    {
+      "id": "CC-EXIT-CODE",
+      "family": "clean-code",
+      "severity": "medium",
+      "kind": "pattern",
+      "title": "Une commande pose process.exitCode, elle ne force pas sa sortie",
+      "pattern": "\\bprocess\\.exit\\(",
+      "files": "src/**",
+      "exclude": "src/server/{server.ts,mcp/index.ts}"
+    },
+    {
+      "id": "TL-LINT",
+      "family": "tooling",
+      "severity": "high",
+      "kind": "command",
+      "run": "pnpm run lint"
+    },
+    {
+      "id": "TL-TYPES",
+      "family": "tooling",
+      "severity": "high",
+      "kind": "command",
+      "run": "pnpm run type-check"
+    },
+    {
+      "id": "TL-TEST",
+      "family": "tooling",
+      "severity": "high",
+      "kind": "command",
+      "run": "pnpm run test"
+    },
+    {
+      "id": "AI-ARCH",
+      "family": "ai",
+      "severity": "medium",
+      "kind": "ai",
+      "prompt": "Review the architecture of this codebase: layering, the responsibility of each folder, and coupling between features. Report concrete violations: a feature reaching into another one's internals, a folder mixing unrelated responsibilities, a dependency pointing the wrong way."
+    },
+    {
+      "id": "AI-CLEAN",
+      "family": "ai",
+      "severity": "medium",
+      "kind": "ai",
+      "prompt": "Review the code for clean-code issues: unclear naming, functions that are too long or do several things, weak error handling, dead or duplicated code. Report concrete, specific occurrences only."
+    }
+  ]
+}

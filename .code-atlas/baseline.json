@@ -1,21 +1,21 @@
 {
-  "commit": "20d2cd55d6c3a26551745c09c8e63980142263e7",
-  "savedAt": "2026-11-22T22:05:05.033Z",
+  "commit": "470ef681f5a819c7756e1dde9abef07072acd5f6",
+  "savedAt": "2026-11-22T23:23:08.284Z",
   "scores": {
-    "overall": 84,
+    "overall": 89,
     "families": [
       {
         "family": "architecture",
-        "score": 97,
-        "rules": 3,
+        "score": 99,
+        "rules": 16,
         "failing": 1,
         "pending": 0,
         "beta": false
       },
       {
         "family": "clean-code",
-        "score": 70,
-        "rules": 4,
+        "score": 79,
+        "rules": 6,
         "failing": 4,
         "pending": 0,
         "beta": false
@@ -23,12 +23,27 @@
     ]
   },
   "violations": {
+    "ARCH-LAYERS": 0,
     "ARCH-MUTUAL": 0,
+    "ARCH-SIBLINGS": 0,
     "ARCH-CYCLES": 0,
-    "ARCH-DOCS": 4,
+    "ARCH-DOCS": 7,
+    "ARCH-PAGE-NO-SERVER": 0,
+    "ARCH-SERVER-NO-PAGE": 0,
+    "ARCH-CONTRACT-LEAF": 0,
+    "ARCH-JOURNAL-PAGE-ONLY": 0,
+    "ARCH-UI-NO-DATA": 0,
+    "ARCH-EXEC-ONLY": 0,
+    "ARCH-NO-SHELL": 0,
+    "ARCH-FAST-FORWARD-ONLY": 0,
+    "ARCH-GITHUB-READ-ONLY": 0,
+    "ARCH-NO-RUNTIME-DEPENDENCY": 0,
+    "ARCH-MCP-STDOUT": 0,
     "CC-LINES": 3,
     "CC-COMPLEXITY": 8,
     "CC-PARAMS": 2,
-    "CC-ANY": 1
+    "CC-ANY": 1,
+    "CC-SHARED-SILENT": 0,
+    "CC-EXIT-CODE": 0
   }
 }
