@@ -1,0 +1,34 @@
+{
+  "commit": "20d2cd55d6c3a26551745c09c8e63980142263e7",
+  "savedAt": "2026-11-22T22:05:05.033Z",
+  "scores": {
+    "overall": 84,
+    "families": [
+      {
+        "family": "architecture",
+        "score": 97,
+        "rules": 3,
+        "failing": 1,
+        "pending": 0,
+        "beta": false
+      },
+      {
+        "family": "clean-code",
+        "score": 70,
+        "rules": 4,
+        "failing": 4,
+        "pending": 0,
+        "beta": false
+      }
+    ]
+  },
+  "violations": {
+    "ARCH-MUTUAL": 0,
+    "ARCH-CYCLES": 0,
+    "ARCH-DOCS": 4,
+    "CC-LINES": 3,
+    "CC-COMPLEXITY": 8,
+    "CC-PARAMS": 2,
+    "CC-ANY": 1
+  }
+}
