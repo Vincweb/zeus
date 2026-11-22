@@ -128,8 +128,8 @@ It can stay empty. `.zeus/config.json`, optional, holds only what nobody else ca
   An account not named here is followed whole, repositories to come included. Also set from the
   page (« Repos suivis… »).
 - **folders** — the folder new clones of an account go to, when it is not the account's name.
-- **tools** — cross-project tools on top of the default ones (code-atlas, claude-context-viewer);
-  a tool that reuses the `id` of a default one replaces it.
+- **tools** — cross-project tools on top of the default ones (Claude Code, code-atlas,
+  claude-context-viewer); a tool that reuses the `id` of a default one replaces it.
 - **scanDepth** (3), **includeArchived** (`false`).
 
 ## The page
@@ -176,8 +176,9 @@ one click. A tool has a `scope` and, for the click, an `install` recipe:
 | `{ "kind": "claude-plugin", "plugin": "name@marketplace", "marketplace": "owner/repo" }` | `claude plugin marketplace add …` then `claude plugin install …`                                                 | Claude Code |
 | `{ "kind": "npm-global", "package": "name" }`                                            | `npm install -g name`                                                                                            | the machine |
 | `{ "kind": "dev-dependency", "package": "name" }`                                        | the development dependency, added with the package manager **of the chosen repository** — bun, pnpm, yarn or npm | one clone   |
+| `{ "kind": "claude-code" }`                                                              | nothing: its installer is shown to copy — `claude update` brings it up to date                                   | the machine |
 
-A recipe only names a package or a plugin, never a command: the three forms are fixed, and a name
+A recipe only names a package or a plugin, never a command: the forms are fixed, and a name
 that is not just a name (`--registry=…`, `a; b`) is refused when the config is read. The page shows
 the commands before running them, then what each one answered.
 
@@ -187,6 +188,15 @@ readable — and leaves `package.json` and the lockfile modified, to commit in t
 
 Detection (`detect`): `files` or `dependency` in a clone, `plugin` among the plugins Claude Code
 has installed, `command` on the `PATH`.
+
+On macOS, **« Lancer »** opens Terminal on the tool: `npx <package>` in a clone where a project's
+tool is in place, the `detect.command` of a machine-wide one. That line comes from the recipe too —
+a `run` written in the config is only shown, to copy — and anywhere else the command is to copy.
+
+For the tools of the machine and of Claude Code, Zeus also says whether a **later release** exists
+— npm for a package, the marketplace's catalog on GitHub for a plugin — and updates them on a
+click (`npm install -g name@latest`, `claude plugin update …`). A project's tool is left out: its
+version is one of that project's dependencies.
 
 ## What Zeus does — and does not
 
@@ -266,6 +276,8 @@ The page can run `git clone` and `git fetch`: it obeys only itself.
 - No shell, no prompt: a command that would ask for a password fails instead of waiting.
 - Installing a tool names a tool and, at most, a repository: what runs is the recipe the server
   holds for that tool, in a clone it found itself.
+- The one exception to « no shell »: launching a tool opens Terminal, in plain sight, on a line
+  built from that same recipe; the folder and the words reach it as arguments, quoted by macOS.
 - Zeus keeps no token, creates no repository and pushes nothing.
 
 ## Development

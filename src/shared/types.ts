@@ -157,6 +157,11 @@ export type InstallRecipe =
   | { kind: 'npm-global'; package: string }
   /** A development dependency, added to one clone with that clone's own package manager. */
   | { kind: 'dev-dependency'; package: string }
+  /**
+   * Claude Code itself: installed with its own installer, shown to copy; updated with
+   * `claude update`; launched as `claude` in the parent folder.
+   */
+  | { kind: 'claude-code' }
 
 export type ToolConfig = {
   id: string
@@ -195,7 +200,25 @@ export type ToolStatus = ToolConfig & {
   installCommands: string[]
   /** Scope `repo`: the ids of the clones it can be installed in — npm projects that lack it. */
   installable: string[]
+  /**
+   * What « Lancer » types in a terminal, derived from the recipe — never the free `run` of a
+   * config, which is only shown to copy. Null when no fixed form covers the tool.
+   */
+  launch: string | null
+  /** What « Mettre à jour » runs, shown before it is run. Empty when the tool has no such step. */
+  updateCommands: string[]
 }
+
+/** How an installed tool compares with its latest release. Read apart from the status: it asks npm and GitHub. */
+export type ToolVersion = {
+  installed: string | null
+  /** Null when the registry or GitHub did not say. */
+  latest: string | null
+  /** A later release than the installed one exists. */
+  outdated: boolean
+}
+
+export type ToolVersionsPayload = { versions: Record<string, ToolVersion> }
 
 /** One command of an installation, as it was run and how it ended. */
 export type InstallStep = { command: string; ok: boolean; output: string }
@@ -233,6 +256,8 @@ export type HomeInfo = {
   /** The command that prints this status as a table, for an agent without the MCP tools. */
   statusCommand: string
   claude: ClaudeLink
+  /** A click can open a terminal on this machine — Terminal.app, so macOS only for now. */
+  terminal: boolean
   version: string
 }
 

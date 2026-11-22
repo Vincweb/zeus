@@ -2,7 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type { RepoStatus, ToolConfig, ToolStatus } from '../shared/types'
-import { isNpmProject, previewInstall } from './install'
+import { isNpmProject, launchOf, previewInstall, previewUpdate } from './install'
 import { asArray, asRecord, asString, at, parseJson } from './json'
 
 const readJson = (file: string) => {
@@ -17,7 +17,7 @@ const readJson = (file: string) => {
 const claudeHome = () => process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude')
 
 /** The installed version of a Claude Code plugin, `name@marketplace`, or null without one. */
-const pluginVersion = (plugin: string) => {
+export const pluginVersion = (plugin: string) => {
   const installed = readJson(path.join(claudeHome(), 'plugins', 'installed_plugins.json'))
   const entry = asArray(at(installed, 'plugins', plugin))[0]
   return entry === undefined ? null : (asString(at(entry, 'version')) ?? 'installé')
@@ -53,7 +53,15 @@ const onPath = (command: string) =>
 export const readTools = (tools: ToolConfig[], repos: RepoStatus[]): ToolStatus[] =>
   tools.map((tool): ToolStatus => {
     const installCommands = tool.install ? previewInstall(tool.install) : []
-    const blank = { ...tool, version: null, repos: [], installCommands, installable: [] }
+    const blank = {
+      ...tool,
+      version: null,
+      repos: [],
+      installCommands,
+      installable: [],
+      launch: launchOf(tool)?.join(' ') ?? null,
+      updateCommands: tool.install ? previewUpdate(tool.install) : [],
+    }
     if (tool.scope === 'claude-plugin') {
       const version = tool.detect?.plugin ? pluginVersion(tool.detect.plugin) : null
       return { ...blank, installed: tool.detect?.plugin ? version !== null : null, version }

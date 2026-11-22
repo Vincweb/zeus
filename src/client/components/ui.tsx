@@ -66,6 +66,12 @@ export const CopyIcon = icon(
 )
 export const CheckIcon = icon(<path d="m3.5 8.5 3 3 6-7" />)
 export const ChevronIcon = icon(<path d="m6 3.5 4.5 4.5L6 12.5" />)
+export const TerminalIcon = icon(
+  <>
+    <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8" />
+    <path d="m4.8 6.3 2 1.7-2 1.7M8.6 10h2.6" />
+  </>,
+)
 
 /**
  * A section folded away until asked for: its title, how many it holds, and what in it may matter.

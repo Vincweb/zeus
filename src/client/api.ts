@@ -8,6 +8,7 @@ import type {
   OwnersPayload,
   SetupTarget,
   StatusPayload,
+  ToolVersionsPayload,
 } from '../shared/types'
 
 /** What the server says went wrong, when it is the one answering. */
@@ -99,5 +100,21 @@ export const openInClaude = (root: string, prompt: string) =>
  * Installs a tool: on the machine, in Claude Code, or — `repo` — in one clone. Only names travel:
  * what is run is the recipe the server holds for that tool.
  */
-export const installTool = (root: string, tool: string, repo: string | null) =>
-  post<InstallResult>('/api/tools/install', repo === null ? { root, tool } : { root, tool, repo })
+export const installTool = (root: string, tool: string, repo: string | null, update = false) =>
+  post<InstallResult>('/api/tools/install', {
+    root,
+    tool,
+    ...(repo === null ? {} : { repo }),
+    ...(update ? { update } : {}),
+  })
+
+/** Opens a terminal on the machine running the tool: in a clone for a project's tool. */
+export const runTool = (root: string, tool: string, repo: string | null) =>
+  post<{ opened: boolean; command: string }>(
+    '/api/tools/run',
+    repo === null ? { root, tool } : { root, tool, repo },
+  )
+
+/** How the installed tools compare with their latest release. Slow: npm and GitHub are asked. */
+export const fetchToolVersions = (root: string) =>
+  request<ToolVersionsPayload>(`/api/tools/versions?${query([['root', root]])}`)
