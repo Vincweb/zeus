@@ -2,7 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type { RepoStatus, ToolConfig, ToolStatus } from '../shared/types'
-import { isNpmProject, launchOf, previewInstall, previewUpdate } from './install'
+import { isNpmProject, launchOf, needsTerminal, previewInstall, previewUpdate } from './install'
 import { asArray, asRecord, asString, at, parseJson } from './json'
 
 const readJson = (file: string) => {
@@ -60,6 +60,7 @@ export const readTools = (tools: ToolConfig[], repos: RepoStatus[]): ToolStatus[
       installCommands,
       installable: [],
       launch: launchOf(tool)?.join(' ') ?? null,
+      terminalOnly: needsTerminal(tool),
       updateCommands: tool.install ? previewUpdate(tool.install) : [],
     }
     if (tool.scope === 'claude-plugin') {

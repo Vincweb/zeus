@@ -58,6 +58,7 @@ src/server/
   tools.ts              où chaque outil est en place
   install.ts            les recettes d'installation : lecture, plan, exécution, mise à jour, lancement
   terminal.ts           ouvrir Terminal sur un outil (macOS)
+  journal.ts            ce que le serveur de la page a fait : ses lignes, les actions, les outils lancés
   versions.ts           les outils de la machine et de Claude Code sont-ils à jour
   selfCommand.ts        la commande qui relance ce Zeus, pour un prompt donné à un agent
   mcp/                  `zeus mcp` : index (protocole stdio), tools (catalogue), calls (réponses)
@@ -70,6 +71,7 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
   components/Setup      choisir le dossier parent, sur une machine qui n'a jamais vu Zeus
   components/Opening    l'écran pendant la lecture d'une flotte
   components/Dashboard  une flotte : onglets par compte, repos, actions, outils
+  components/Footer     la barre du bas : version, liens, et la console (Console) du journal
 ```
 
 ## Règles
@@ -90,9 +92,16 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
 - **Mettre à jour n'avance que tout droit** : fetch puis `merge --ff-only`. Jamais de merge, de
   rebase, de stash, de reset.
 - **Pas de shell, pas d'invite** : tout passe par `exec` (`execFile`, délai, invites coupées).
-  Une seule exception, voulue : « Lancer » un outil ouvre Terminal (macOS) sur une ligne que
-  l'utilisateur voit tourner et peut arrêter (`terminal.ts`). Le dossier et les mots y arrivent en
-  arguments, cités par AppleScript (`quoted form of`), jamais collés dans le script.
+  Une seule exception, voulue : l'icône de terminal d'un outil ouvre Terminal (macOS) sur une
+  ligne que l'utilisateur voit tourner et peut arrêter (`terminal.ts`). Le dossier et les mots y
+  arrivent en arguments, cités par AppleScript (`quoted form of`), jamais collés dans le script.
+- **Un outil lancé de la page tourne sous le serveur** (`journal.ts`) : `spawn` sans shell ni
+  stdin, dans son propre groupe de processus, sa sortie gardée (bornée) pour la console. Il
+  s'arrête d'un clic ou avec le serveur, jamais après. Claude Code ne s'y lance pas : il se parle,
+  et il est invité, jamais lancé — il ne s'ouvre que dans Terminal.
+- **Le journal n'écrit que pour la page.** Seules les commandes d'une action y entrent (pas les
+  lectures d'un statut), et rien de ce que partagent la CLI et `zeus mcp` n'imprime : leur sortie
+  est la leur. Il vit en mémoire et part avec le serveur ; le processus MCP ne le voit pas.
 - **Une config ne nomme jamais une commande.** Ce qu'un clic lance vient d'un petit nombre de
   formes fixes (`InstallRecipe`) ; la config n'y met qu'un nom de paquet ou de plugin, validé à la
   lecture. Une nouvelle sorte d'installation est une nouvelle forme dans `install.ts`, pas un champ

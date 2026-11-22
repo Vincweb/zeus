@@ -13,10 +13,14 @@ const { version } = JSON.parse(
   version: string
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   root: 'src/client',
   plugins: [react(), tailwindcss()],
-  define: { __APP_VERSION__: JSON.stringify(version) },
+  // The footer says when the page is the one Vite serves while Zeus itself is being worked on.
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __APP_DEV__: JSON.stringify(command === 'serve'),
+  },
   base: '/',
   build: {
     outDir: '../../dist/client',
@@ -29,4 +33,4 @@ export default defineConfig({
     // matches by prefix, so the client's own /api.ts module would be proxied away too.
     proxy: { '^/api/': API },
   },
-})
+}))
