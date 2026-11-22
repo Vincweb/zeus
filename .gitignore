@@ -6,3 +6,4 @@ dist
 .eslintcache
 *.tsbuildinfo
 *.tgz
+**/.code-atlas/runs
