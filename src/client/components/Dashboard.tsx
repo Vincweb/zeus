@@ -9,21 +9,30 @@ import {
   fetchStatus,
   fetchToolVersions,
   saveAccounts,
+  dismissRun,
   saveFollowedRepos,
   stopRun,
   updateRepo,
 } from '../api'
-import { orchestratorPrompt } from '../claudePrompt'
 import { clock, plural } from '../format'
-import { countsOf, leftOutOf, ofWorkspace, select, withDetails, type Filter } from '../model'
+import {
+  countsOf,
+  leftOutOf,
+  needsUpdate,
+  ofWorkspace,
+  select,
+  withDetails,
+  type Filter,
+} from '../model'
 import { rememberHome } from '../recent'
 import { navigate } from '../router'
 import { AccountsDialog } from './AccountsDialog'
 import { Archived } from './Archived'
-import { ClaudeActions } from './ClaudeActions'
 import { CloneAllDialog } from './CloneAllDialog'
+import { ClaudeDialog } from './ClaudeDialog'
 import { CloneDialog } from './CloneDialog'
 import { Footer } from './Footer'
+import { TerminalSheet } from './TerminalSheet'
 import { NextSteps } from './NextSteps'
 import { Opening } from './Opening'
 import { Orphans } from './Orphans'
@@ -35,11 +44,12 @@ import {
   ArrowDownIcon,
   BoltIcon,
   Button,
-  Fold,
   Link,
   RefreshIcon,
   SearchIcon,
+  SparkIcon,
   Spinner,
+  TerminalIcon,
   cx,
 } from './ui'
 
@@ -116,6 +126,7 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
   // The console: what the server did. Asked again every second while it is open or something
   // runs; otherwise once, and after each action of this page.
   const [consoleOpen, setConsoleOpen] = useState(false)
+  const [claudeOpen, setClaudeOpen] = useState(false)
   const [selectedRun, setSelectedRun] = useState<number | null>(null)
   const [seenUpTo, setSeenUpTo] = useState(0)
   const journal = useQuery({
@@ -151,6 +162,13 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
       .catch(() => {})
       .finally(() => void queryClient.invalidateQueries({ queryKey: ['journal'] }))
   }
+  const dismiss = (id: number | 'finished') => {
+    if (id === 'finished' || id === selectedRun) setSelectedRun(null)
+    void dismissRun(id)
+      .catch(() => {})
+      .finally(() => void queryClient.invalidateQueries({ queryKey: ['journal'] }))
+  }
+  const running = entries.filter((entry) => entry.kind !== 'zeus' && entry.state === 'running')
 
   const toolVersions = useQuery({
     queryKey: ['tool-versions', root],
@@ -253,13 +271,10 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
     await refresh()
   }
 
+  // Only the clones GitHub is ahead of: the others have nothing to bring.
+  const late = repos.filter(needsUpdate)
   const updateAll = () =>
-    runAll(
-      'Mise à jour',
-      repos.filter((repo) => repo.local !== null),
-      PARALLEL_UPDATES,
-      (repo) => updateRepo(root, repo.id),
-    )
+    runAll('Mise à jour', late, PARALLEL_UPDATES, (repo) => updateRepo(root, repo.id))
 
   /** Each missing repository goes where the server puts it: the folder of its account. */
   const cloneAll = () => {
@@ -334,7 +349,7 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
   }
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 pt-5 pb-20 sm:px-6">
+    <div className="mx-auto max-w-[1280px] px-4 pt-5 pb-10 sm:px-6">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex items-center gap-2.5">
           <Link
@@ -358,24 +373,46 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
             </div>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <span className="text-[12px] text-faint" aria-live="polite">
             {bulk ? `${bulk.label} ${bulk.done}/${bulk.total}…` : `Lu à ${clock(generatedAt)}`}
           </span>
+          <Button
+            onClick={toggleConsole}
+            aria-expanded={consoleOpen}
+            title="Ce que le serveur de Zeus a lancé — clones, mises à jour, installations, outils — et ce qu’il a répondu"
+          >
+            <TerminalIcon />
+            Terminal
+            {running.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-info">
+                <Spinner className="size-3" />
+                {running.length}
+              </span>
+            )}
+            {unseenFailures > 0 && (
+              <span
+                className="rounded-full bg-danger-soft px-1.5 text-[11px] text-danger"
+                title={`${unseenFailures} en échec depuis la dernière fois`}
+              >
+                {unseenFailures}
+              </span>
+            )}
+          </Button>
           <Button busy={status.isFetching && !bulk} onClick={() => void refresh(true)}>
             {!(status.isFetching && !bulk) && <RefreshIcon />}
             Actualiser
           </Button>
-          <Button
-            variant="primary"
-            busy={bulk !== null}
-            disabled={counts.cloned === 0}
-            onClick={() => void updateAll()}
-            title="git fetch sur chaque clone en vue, puis avance rapide là où rien ne s’y oppose. Jamais de merge."
-          >
-            {bulk === null && <ArrowDownIcon />}
-            Tout mettre à jour
-          </Button>
+          {home.claude.connected && (
+            <Button
+              variant="primary"
+              onClick={() => setClaudeOpen(true)}
+              title="Ce qu’une session Claude Code ouverte ici sait de la flotte, et le prompt qui la lance"
+            >
+              <SparkIcon />
+              Piloter avec Claude
+            </Button>
+          )}
         </div>
       </header>
 
@@ -389,23 +426,6 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
           ))}
         </div>
       )}
-
-      {/* Driving the fleet from Claude, folded under the header: it is about the whole folder. */}
-      <div className="mt-5 flex flex-col gap-3 empty:hidden">
-        {home.claude.connected && (
-          <section>
-            <Fold id="claude-title" title="Piloter avec Claude">
-              <p className="max-w-[80ch] text-[12.5px] text-muted">
-                Ce dossier est branché à Claude Code : une session ouverte ici interroge Zeus pour
-                savoir où travailler, puis ouvre une session dans le repo concerné.
-              </p>
-              <div className="mt-3 rounded-xl border border-line bg-panel p-4 shadow-card">
-                <ClaudeActions root={root} prompt={orchestratorPrompt(home)} />
-              </div>
-            </Fold>
-          </section>
-        )}
-      </div>
 
       <div
         className="mt-5 flex flex-wrap items-center gap-2"
@@ -515,6 +535,22 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
             <Spinner /> CI et PR de {plural(pending, 'repo', 'repos')} en cours de lecture…
           </span>
         )}
+        <span className="ml-auto">
+          <Button
+            variant={late.length > 0 ? 'primary' : 'ghost'}
+            busy={bulk !== null}
+            disabled={late.length === 0}
+            onClick={() => void updateAll()}
+            title={
+              late.length > 0
+                ? `git fetch sur les ${plural(late.length, 'clone', 'clones')} en retard, puis avance rapide là où rien ne s’y oppose. Jamais de merge.`
+                : 'Rien à mettre à jour : aucun clone en vue n’est en retard sur GitHub'
+            }
+          >
+            {bulk === null && <ArrowDownIcon />}
+            Tout mettre à jour{late.length > 0 && ` (${late.length})`}
+          </Button>
+        </span>
       </div>
 
       <div className="mt-3">
@@ -536,16 +572,20 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         />
       </div>
 
-      <Footer
-        version={home.version}
-        entries={entries}
-        open={consoleOpen}
-        selected={selectedRun}
-        unseenFailures={unseenFailures}
-        onToggle={toggleConsole}
-        onSelect={setSelectedRun}
-        onStop={stop}
-      />
+      <Footer version={home.version} />
+
+      {claudeOpen && <ClaudeDialog root={root} home={home} onClose={() => setClaudeOpen(false)} />}
+
+      {consoleOpen && (
+        <TerminalSheet
+          entries={entries}
+          selected={selectedRun}
+          onSelect={setSelectedRun}
+          onStop={stop}
+          onDismiss={dismiss}
+          onClose={() => setConsoleOpen(false)}
+        />
+      )}
 
       {confirmingAll && single && (
         <CloneAllDialog

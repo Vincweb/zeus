@@ -153,7 +153,7 @@ export const InstallDialog = ({
             </div>
             <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
               {perRepo
-                ? 'Avec le gestionnaire du repo choisi — bun, pnpm, yarn ou npm, selon son lockfile. Le repo doit être propre : l’ajout reste à commiter là-bas.'
+                ? 'Ajouté au repo choisi, comme dépendance de développement — pas pour toute la machine. Avec le gestionnaire de ce repo (bun, pnpm, yarn ou npm, selon son lockfile) ; il doit être propre, et l’ajout reste à commiter là-bas.'
                 : tool.install?.kind === 'claude-plugin'
                   ? 'Redémarre Claude Code ensuite pour charger le plugin.'
                   : 'Pour toute la machine.'}

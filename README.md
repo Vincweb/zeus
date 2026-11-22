@@ -143,11 +143,12 @@ It can stay empty. `.zeus/config.json`, optional, holds only what nobody else ca
 - **Choosing a folder** — for a machine that has never seen Zeus: `git`, `gh`, the account signed
   in, how clones are fetched; then the parent folder; then the accounts found. Zeus observes and
   says what to run (`gh auth login`): it signs nobody in.
-- **The fleet** — the tools and the way to drive it from Claude, folded under the header; one tab
-  per workspace, six figures that filter, the table of repositories grouped by folder, then two
-  folded lists: the other git folders found under the root — without a remote, outside GitHub,
-  from another account, not followed, no longer listed by GitHub — each with its reason, and the
-  archived repositories that are not cloned.
+- **The fleet** — in the header, Zeus's terminal and a window on driving the fleet from Claude;
+  then one tab per workspace, six figures that filter, the tools folded beneath them, and the table
+  of repositories grouped by folder — with « Tout mettre à jour » above it, and a code-atlas column
+  where it is set up. At the end, two folded lists: the other git folders found under the root —
+  without a remote, outside GitHub, from another account, not followed, no longer listed by GitHub —
+  each with its reason, and the archived repositories that are not cloned.
 
 <div align="center">
 <img src="docs/media/workspace.png" alt="The acme workspace: five clones — two up to date, one of them with three modified files, one to push, two behind with their update button lit — and six repositories not cloned yet, each with its CI, open pull requests and issues, and a clone button" width="960">
@@ -165,7 +166,7 @@ repositories that are not cloned arrive a few seconds later, without holding the
 ## Cross-project tools
 
 <div align="center">
-<img src="docs/media/tools.png" alt="The tools of a fleet: code-atlas in place in two repositories with a picker to install it in another, claude-context-viewer installed on the machine, a Claude Code plugin not installed with the two commands a click would run, and the git folders that are the clone of no followed repository" width="960">
+<img src="docs/media/tools.png" alt="The tools of a fleet, each with where it stands on the machine and what a click does with it" width="960">
 </div>
 
 Zeus lists the tools that serve several projects, says where each is in place, and installs it in
@@ -174,9 +175,13 @@ one click. A tool has a `scope` and, for the click, an `install` recipe:
 | Recipe                                                                                   | What a click runs                                                                                                | Where       |
 | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- |
 | `{ "kind": "claude-plugin", "plugin": "name@marketplace", "marketplace": "owner/repo" }` | `claude plugin marketplace add …` then `claude plugin install …`                                                 | Claude Code |
-| `{ "kind": "npm-global", "package": "name" }`                                            | `npm install -g name`                                                                                            | the machine |
+| `{ "kind": "npm-global", "package": "name", "from": "npmjs" }`                           | `npm install -g name` — with `"from": "npmjs"`, from the public registry whatever `~/.npmrc` maps the scope to   | the machine |
 | `{ "kind": "dev-dependency", "package": "name" }`                                        | the development dependency, added with the package manager **of the chosen repository** — bun, pnpm, yarn or npm | one clone   |
 | `{ "kind": "claude-code" }`                                                              | nothing: its installer is shown to copy — `claude update` brings it up to date                                   | the machine |
+
+`"from": "npmjs"` is for a package published on the public registry while `~/.npmrc` sends its
+scope elsewhere — a scope often points at a private registry for other packages; the option holds
+for that one command, and nothing is written. Zeus's own tools are declared so.
 
 A recipe only names a package or a plugin, never a command: the forms are fixed, and a name
 that is not just a name (`--registry=…`, `a; b`) is refused when the config is read. The page shows
@@ -189,14 +194,20 @@ readable — and leaves `package.json` and the lockfile modified, to commit in t
 Detection (`detect`): `files` or `dependency` in a clone, `plugin` among the plugins Claude Code
 has installed, `command` on the `PATH`.
 
-**« Lancer »** starts the tool under Zeus — `npx <package>` in a clone where a project's tool is in
-place, the `detect.command` of a machine-wide one — and the console at the bottom of the page shows
-what it prints, the page it serves, and stops it. On macOS, the terminal icon opens it in Terminal
-instead; Claude Code only opens there. The line comes from the recipe — a `run` written in the
-config is only shown, to copy. Tools started from the page stop with Zeus.
+**« Lancer »** starts the tool under Zeus — the `detect.command` of a machine-wide tool, in the
+parent folder; `npx <package>` for a project's tool, in a clone that depends on it — and Zeus's
+terminal (a button at the top of the page, a window that comes up from the bottom) shows what it
+prints, opens the page it serves, and stops it. On macOS, the terminal icon opens it in Terminal
+instead. Claude Code is not launched from its card: « Piloter avec Claude » opens a session in the
+app. The line comes from the recipe — a `run` written in the config is only shown, to copy. Tools
+started from the page stop with Zeus.
 
-The console also keeps what the server itself did: its own lines, and each clone, update or
-installation with the commands it ran and what they answered. It lives in the server's memory.
+The terminal also keeps what the server itself did: its own lines, and each clone, update or
+installation with the commands it ran and what they answered. It lives in the server's memory; what
+is over can be closed.
+
+Where code-atlas is set up, the list of repositories shows the score it **recorded** — its baseline,
+`.code-atlas/baseline.json`, accepted on a given day — not a measure taken now.
 
 For the tools of the machine and of Claude Code, Zeus also says whether a **later release** exists
 — npm for a package, the marketplace's catalog on GitHub for a plugin — and updates them on a

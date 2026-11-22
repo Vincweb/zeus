@@ -11,6 +11,7 @@ import type {
   SyncState,
   Workspace,
 } from '../shared/types'
+import { readAtlas } from './atlas'
 import { mapLimit } from './exec'
 import { fetchDetails, knownDetail, listOwnerRepos, type ListedRepo } from './github'
 import { folderFor, followsRepo, tilde, toolsOf, type Home } from './home'
@@ -301,9 +302,15 @@ export const collectStatus = async (
       remoteHasNew,
       workspace: remote.owner,
       group: local ? folderOf(local.relativePath) : null,
+      atlas: null,
     }
   })
   repos.sort((a, b) => byName(a.remote.name, b.remote.name))
+
+  // Where each tool is in place, and what code-atlas recorded in each clone — what the tool left
+  // behind, read as it is (see CLAUDE.md, « Frontière »).
+  const tools = readTools(toolsOf(home), repos)
+  for (const repo of repos) if (repo.local) repo.atlas = readAtlas(repo.local.path)
 
   // Where a new clone may go besides its account's folder: the root, and every folder that
   // already holds one.
@@ -330,7 +337,7 @@ export const collectStatus = async (
     workspaces,
     repos,
     orphans,
-    tools: readTools(toolsOf(home), repos),
+    tools,
     archived,
     pendingDetails: repos.filter((repo) => !repo.remote.detailed && !repo.remote.isArchived).length,
     warnings,

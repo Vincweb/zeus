@@ -140,6 +140,10 @@ export const fetchJournalLines = (id: number, from: number) =>
     ])}`,
   )
 
+/** Closes an entry of the journal that is over — or all of them. */
+export const dismissRun = (id: number | 'finished') =>
+  post<{ closed: number }>('/api/journal/dismiss', { id })
+
 /** Stops a tool started from the page, by its entry in the journal. */
 export const stopRun = (id: number) => post<{ stopping: boolean }>('/api/journal/stop', { id })
 

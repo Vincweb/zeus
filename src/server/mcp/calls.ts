@@ -134,6 +134,8 @@ const line = (repo: RepoStatus) => ({
   ci: repo.remote.detailed ? repo.remote.ci : null,
   openPullRequests: repo.remote.detailed ? repo.remote.openPullRequests : null,
   ready: notReadyBecause(repo).length === 0,
+  // The score code-atlas recorded in the clone — its baseline — when it is set up there.
+  ...(repo.atlas ? { codeAtlasScore: repo.atlas.score?.overall ?? null } : {}),
 })
 
 /**
@@ -217,6 +219,12 @@ export const repoView = (status: StatusPayload, repo: RepoStatus) => {
       openIssues: repo.remote.openIssues,
     },
     tools: status.tools.filter((tool) => tool.repos.includes(repo.id)).map((tool) => tool.id),
+    // What code-atlas recorded here: a reference accepted at `recordedAt`, not a measure of now.
+    codeAtlas: repo.atlas && {
+      score: repo.atlas.score?.overall ?? null,
+      recordedAt: repo.atlas.score?.savedAt ?? null,
+      families: repo.atlas.score?.families ?? [],
+    },
   }
 }
 

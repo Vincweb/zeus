@@ -137,6 +137,7 @@ const repo = (name: string, extra: Partial<RepoStatus> = {}): RepoStatus => ({
   remoteHasNew: false,
   workspace: 'Vincweb',
   group: null,
+  atlas: null,
   ...extra,
 })
 
@@ -203,7 +204,8 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
       installCommands: [],
       installable: [],
       launch: 'npx @vincweb/code-atlas',
-      terminalOnly: false,
+      global: null,
+      runnable: ['Vincweb/clean'],
       updateCommands: [],
     },
   ],

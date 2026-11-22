@@ -2,7 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type { RepoStatus, ToolConfig, ToolStatus } from '../shared/types'
-import { isNpmProject, launchOf, needsTerminal, previewInstall, previewUpdate } from './install'
+import { isNpmProject, launchOf, previewInstall, previewUpdate } from './install'
 import { asArray, asRecord, asString, at, parseJson } from './json'
 
 const readJson = (file: string) => {
@@ -23,7 +23,7 @@ export const pluginVersion = (plugin: string) => {
   return entry === undefined ? null : (asString(at(entry, 'version')) ?? 'installé')
 }
 
-const dependsOn = (dir: string, dependency: string) => {
+export const dependsOn = (dir: string, dependency: string) => {
   const manifest = asRecord(readJson(path.join(dir, 'package.json')))
   return ['dependencies', 'devDependencies'].some(
     (field) => asRecord(manifest?.[field])?.[dependency] !== undefined,
@@ -59,8 +59,9 @@ export const readTools = (tools: ToolConfig[], repos: RepoStatus[]): ToolStatus[
       repos: [],
       installCommands,
       installable: [],
+      global: null,
+      runnable: [],
       launch: launchOf(tool)?.join(' ') ?? null,
-      terminalOnly: needsTerminal(tool),
       updateCommands: tool.install ? previewUpdate(tool.install) : [],
     }
     if (tool.scope === 'claude-plugin') {
@@ -72,10 +73,21 @@ export const readTools = (tools: ToolConfig[], repos: RepoStatus[]): ToolStatus[
       const cloned = repos.filter((repo) => repo.local !== null)
       const equipped = cloned.filter((repo) => repo.local && isSetUpIn(repo.local.path, detect))
       const has = new Set(equipped.map((repo) => repo.id))
+      const global = detect.command ? onPath(detect.command) : null
       return {
         ...blank,
         installed: equipped.length > 0,
         repos: equipped.map((repo) => repo.id),
+        global,
+        runnable: equipped
+          .filter(
+            (repo) =>
+              global === true ||
+              (detect.dependency !== undefined &&
+                repo.local !== null &&
+                dependsOn(repo.local.path, detect.dependency)),
+          )
+          .map((repo) => repo.id),
         // Where a click could put it: an npm project that does not have it yet.
         installable:
           tool.install?.kind === 'dev-dependency'

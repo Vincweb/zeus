@@ -229,9 +229,10 @@ test('updates a machine package to its latest, a plugin after its catalog, and n
   assert.deepEqual(project.calls, [])
 })
 
-test('launches Claude Code, updates it with its own command, and never runs its installer', async () => {
+test('never launches Claude Code, updates it with its own command, never runs its installer', async () => {
   const claude = { ...tool(toRecipe({ kind: 'claude-code' }, 'test')), scope: 'machine' as const }
-  assert.deepEqual(launchOf(claude), ['claude'])
+  // Claude is invited, never started: « Piloter avec Claude » opens a session in the app.
+  assert.equal(launchOf(claude), null)
   const update = recorder()
   const updated = await installTool(
     claude,
@@ -251,4 +252,46 @@ test('launches Claude Code, updates it with its own command, and never runs its 
   )
   assert.equal(refused.ok, false)
   assert.deepEqual(install.calls, [])
+})
+
+test('takes a package published on npmjs from there, whatever the scope is mapped to', () => {
+  assert.deepEqual(
+    previewInstall({ kind: 'npm-global', package: '@vincweb/code-atlas', from: 'npmjs' }),
+    ['npm install -g @vincweb/code-atlas --@vincweb:registry=https://registry.npmjs.org/'],
+  )
+  assert.deepEqual(previewInstall({ kind: 'npm-global', package: 'viewer', from: 'npmjs' }), [
+    'npm install -g viewer --registry=https://registry.npmjs.org/',
+  ])
+  assert.deepEqual(previewInstall({ kind: 'npm-global', package: 'viewer' }), [
+    'npm install -g viewer',
+  ])
+  assert.deepEqual(toRecipe({ kind: 'npm-global', package: 'a', from: 'npmjs' }, 'x'), {
+    kind: 'npm-global',
+    package: 'a',
+    from: 'npmjs',
+  })
+  assert.throws(
+    () => toRecipe({ kind: 'npm-global', package: 'a', from: 'https://evil.example/' }, 'x'),
+    /npmjs/,
+  )
+})
+
+test('names the registry that answered 404 even when npm says it well before its last lines', async () => {
+  const output = [
+    'npm error code E404',
+    'npm error 404 Not Found - GET https://npm.pkg.github.com/@vincweb%2fcode-atlas - not found',
+    'npm error 404',
+    "npm error 404  The requested resource '@vincweb/code-atlas@*' could not be found",
+    'npm error 404',
+    'npm error 404 Note that you can also install from a',
+    'npm error 404 tarball, folder, http url, or git url.',
+    'npm error A complete log of this run can be found in: /tmp/debug.log',
+  ].join('\n')
+  const { run } = recorder({ 'npm install -g @vincweb/code-atlas': failed(output) })
+  const result = await installTool(
+    tool({ kind: 'npm-global', package: '@vincweb/code-atlas' }),
+    { root: '/root', repoId: null, clone: null },
+    run,
+  )
+  assert.match(result.message, /npm\.pkg\.github\.com/)
 })
