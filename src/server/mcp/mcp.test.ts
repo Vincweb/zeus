@@ -203,6 +203,7 @@ const status = (repos: RepoStatus[]): StatusPayload => ({
       installCommands: [],
       installable: [],
       launch: 'npx @vincweb/code-atlas',
+      terminalOnly: false,
       updateCommands: [],
     },
   ],

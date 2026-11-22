@@ -1,6 +1,12 @@
 import http from 'http'
 import path from 'path'
-import type { ActionResult, HomesPayload, Owner, StatusPayload } from '../shared/types'
+import type {
+  ActionResult,
+  HomesPayload,
+  JournalPayload,
+  Owner,
+  StatusPayload,
+} from '../shared/types'
 import { claudeLink, fleetPath } from '../shared/routes'
 import { cloneRepo, updateRepo } from './actions'
 import { openInBrowser, openUrl, pageUrl } from './browser'
@@ -15,9 +21,11 @@ import {
   toolsOf,
 } from './home'
 import { isAllowedHost, isForeign, mayAct } from './host'
-import { installTool, launchOf } from './install'
+import { headless, installTool, launchOf, needsTerminal } from './install'
+import { createJournal, stopWithProcess } from './journal'
 import { asArray, asRecord, asString, parseJson, type Json } from './json'
 import { checkMachine, listOwners } from './machine'
+import { observeExec } from './exec'
 import { createHome, describeTarget, resolveTarget } from './setup'
 import { MISSING_CLIENT, clientIsBuilt, devPage, serveClientFile } from './static'
 import { collectDetails, collectStatus } from './status'
@@ -109,6 +117,14 @@ export const serveZeus = ({
    * refresh; the status is collected afresh too, since its whole point is to say what is true now.
    */
   const known = new Map<string, { at: number; payload: StatusPayload }>()
+
+  /**
+   * What this server did, for the page's console: its own lines, the commands of each action, the
+   * tools started from the page. The tools stop with the server.
+   */
+  const journal = createJournal()
+  observeExec(journal.recordCommand)
+  stopWithProcess(journal)
   const status = async (root: string, fresh = true) => {
     const payload = await collectStatus(loadHome(root), version, {
       githubMaxAgeMs: fresh ? 0 : GITHUB_GOOD_FOR_MS,
@@ -195,12 +211,26 @@ export const serveZeus = ({
       case '/api/clone':
         return onRepo(request, async (current, id, body) => {
           const repo = current.repos.find((candidate) => candidate.id === id)
-          return repo ? cloneRepo(current, repo, asString(body.folder)) : null
+          return repo
+            ? journal.track(
+                `Clone de ${repo.id}`,
+                null,
+                () => cloneRepo(current, repo, asString(body.folder)),
+                (result) => result,
+              )
+            : null
         })
       case '/api/update':
         return onRepo(request, async (current, id) => {
           const repo = current.repos.find((candidate) => candidate.id === id)
-          return repo ? updateRepo(repo) : null
+          return repo
+            ? journal.track(
+                `Mise à jour de ${repo.id}`,
+                repo.local?.relativePath ?? null,
+                () => updateRepo(repo),
+                (result) => result,
+              )
+            : null
         })
 
       // A tool installed with a click. The request names a tool and at most a repository; what
@@ -217,12 +247,19 @@ export const serveZeus = ({
           ? (await knownStatus(root)).repos.find((candidate) => candidate.id === repoId)
           : undefined
         if (repoId && !repo) throw new Refusal(404, `aucun repo suivi ne s'appelle ${repoId}`)
-        const result = await installTool(tool, {
-          root,
-          repoId: repo?.id ?? null,
-          clone: repo?.local ?? null,
-          update: body.update === true,
-        })
+        const update = body.update === true
+        const result = await journal.track(
+          `${update ? 'Mise à jour' : 'Installation'} de ${tool.name}`,
+          repo?.local?.relativePath ?? null,
+          () =>
+            installTool(tool, {
+              root,
+              repoId: repo?.id ?? null,
+              clone: repo?.local ?? null,
+              update,
+            }),
+          (outcome) => outcome,
+        )
         // What is in place has changed: the next status must not be the one kept from before.
         known.delete(root)
         return result
@@ -234,7 +271,9 @@ export const serveZeus = ({
       case '/api/tools/run': {
         const body = await bodyOf(request)
         const root = rootOf(asString(body.root))
-        if (!canOpenTerminal()) {
+        // In Zeus by default: the server starts it and the page shows what it prints.
+        const inTerminal = body.where === 'terminal'
+        if (inTerminal && !canOpenTerminal()) {
           throw new Refusal(
             501,
             'ouvrir un terminal d’un clic ne marche que sur macOS pour l’instant',
@@ -256,6 +295,7 @@ export const serveZeus = ({
         const current = await knownStatus(root)
         const standing = current.tools.find((candidate) => candidate.id === tool.id)
         let dir = root
+        let where = current.home.label
         if (tool.scope === 'repo') {
           const repoId = asString(body.repo)
           const repo = current.repos.find((candidate) => candidate.id === repoId)
@@ -263,8 +303,21 @@ export const serveZeus = ({
             throw new Refusal(400, `choisis un repo cloné où ${tool.name} est en place`)
           }
           dir = repo.local.path
+          where = repo.local.relativePath
         } else if (standing?.installed !== true) {
           throw new Refusal(400, `${tool.name} n’est pas installé sur cette machine`)
+        }
+        if (!inTerminal) {
+          if (needsTerminal(tool)) {
+            throw new Refusal(400, `${tool.name} se parle : il s’ouvre dans un terminal`)
+          }
+          return journal.start({
+            title: tool.name,
+            words: headless(words),
+            cwd: dir,
+            where,
+            toolId: tool.id,
+          })
         }
         try {
           await openTerminal(dir, words)
@@ -275,6 +328,26 @@ export const serveZeus = ({
           )
         }
         return { opened: true, command: words.join(' ') }
+      }
+
+      // The console of the page: what this server did, and the lines of one entry.
+      case '/api/journal':
+        return { entries: journal.list() } satisfies JournalPayload
+      case '/api/journal/lines': {
+        const lines = journal.linesOf(
+          Number(url.searchParams.get('id')),
+          Number(url.searchParams.get('from') ?? 0) || 0,
+        )
+        if (!lines) throw new Refusal(404, 'cette entrée du journal n’existe plus')
+        return lines
+      }
+      // Stopping names an entry of the journal, never a process.
+      case '/api/journal/stop': {
+        const body = await bodyOf(request)
+        if (!journal.stop(Number(body.id))) {
+          throw new Refusal(404, 'rien ne tourne sous ce numéro')
+        }
+        return { stopping: true }
       }
 
       // How the installed tools compare with their latest release: npm and GitHub are asked, so
@@ -418,7 +491,11 @@ export const serveZeus = ({
           : error instanceof ConfigError
             ? [400, error.message]
             : [500, 'erreur interne du serveur']
-      if (code === 500) console.error(error)
+      if (code === 500)
+        journal.log(
+          error instanceof Error ? (error.stack ?? error.message) : String(error),
+          'error',
+        )
       if (response.headersSent) response.end()
       else json(response, { error: message }, code)
     })
@@ -443,8 +520,8 @@ export const serveZeus = ({
     const api = pageUrl(host, port + attempt)
     // Started in a root, or anywhere beneath one, the page opens on it; elsewhere, on the welcome page.
     const page = `${devWeb ?? api}${launchRoot ? fleetPath(launchRoot) : '/'}`
-    console.log(devWeb ? `zeus : API sur ${api}, page sur ${page}` : `zeus : ${page}`)
-    if (!built && !devWeb) console.error(MISSING_CLIENT)
+    journal.log(devWeb ? `zeus : API sur ${api}, page sur ${page}` : `zeus : ${page}`)
+    if (!built && !devWeb) journal.log(MISSING_CLIENT, 'error')
     if (open) openInBrowser(page)
   })
   listen()

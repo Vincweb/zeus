@@ -14,7 +14,7 @@ export type ExecResult = {
  * so a credential or host-key prompt would hang until the timeout. Each tool is told to fail
  * instead. A GIT_SSH_COMMAND already set by the user is theirs to keep.
  */
-const quietEnv = (): NodeJS.ProcessEnv => ({
+export const quietEnv = (): NodeJS.ProcessEnv => ({
   ...process.env,
   GIT_TERMINAL_PROMPT: '0',
   GCM_INTERACTIVE: 'never',
@@ -22,6 +22,18 @@ const quietEnv = (): NodeJS.ProcessEnv => ({
   GH_NO_UPDATE_NOTIFIER: '1',
   GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
 })
+
+type ExecObserver = (command: string, args: string[], result: ExecResult) => void
+
+let observer: ExecObserver | null = null
+
+/**
+ * Who hears of every command once it has ended: the page's server, which keeps those run for an
+ * action in its journal. The CLI and `zeus mcp` set none — their output is theirs alone.
+ */
+export const observeExec = (next: ExecObserver | null) => {
+  observer = next
+}
 
 /**
  * Runs a command without a shell — arguments are passed as they are, never parsed — and always
@@ -38,13 +50,15 @@ export const exec = (
       args,
       { cwd, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: quietEnv() },
       (error, stdout, stderr) => {
-        resolve({
+        const result = {
           ok: error === null,
           code: error === null ? 0 : typeof error.code === 'number' ? error.code : null,
           stdout,
           stderr,
           timedOut: error?.killed === true,
-        })
+        }
+        observer?.(command, args, result)
+        resolve(result)
       },
     )
   })

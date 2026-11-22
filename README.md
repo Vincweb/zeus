@@ -189,9 +189,14 @@ readable — and leaves `package.json` and the lockfile modified, to commit in t
 Detection (`detect`): `files` or `dependency` in a clone, `plugin` among the plugins Claude Code
 has installed, `command` on the `PATH`.
 
-On macOS, **« Lancer »** opens Terminal on the tool: `npx <package>` in a clone where a project's
-tool is in place, the `detect.command` of a machine-wide one. That line comes from the recipe too —
-a `run` written in the config is only shown, to copy — and anywhere else the command is to copy.
+**« Lancer »** starts the tool under Zeus — `npx <package>` in a clone where a project's tool is in
+place, the `detect.command` of a machine-wide one — and the console at the bottom of the page shows
+what it prints, the page it serves, and stops it. On macOS, the terminal icon opens it in Terminal
+instead; Claude Code only opens there. The line comes from the recipe — a `run` written in the
+config is only shown, to copy. Tools started from the page stop with Zeus.
+
+The console also keeps what the server itself did: its own lines, and each clone, update or
+installation with the commands it ran and what they answered. It lives in the server's memory.
 
 For the tools of the machine and of Claude Code, Zeus also says whether a **later release** exists
 — npm for a package, the marketplace's catalog on GitHub for a plugin — and updates them on a
@@ -276,8 +281,10 @@ The page can run `git clone` and `git fetch`: it obeys only itself.
 - No shell, no prompt: a command that would ask for a password fails instead of waiting.
 - Installing a tool names a tool and, at most, a repository: what runs is the recipe the server
   holds for that tool, in a clone it found itself.
-- The one exception to « no shell »: launching a tool opens Terminal, in plain sight, on a line
-  built from that same recipe; the folder and the words reach it as arguments, quoted by macOS.
+- A tool started from the page runs without a shell or a stdin, in a process group of its own that
+  is stopped with the server.
+- The one exception to « no shell »: opening a tool in Terminal, in plain sight, on a line built
+  from that same recipe; the folder and the words reach it as arguments, quoted by macOS.
 - Zeus keeps no token, creates no repository and pushes nothing.
 
 ## Development

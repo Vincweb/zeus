@@ -205,6 +205,8 @@ export type ToolStatus = ToolConfig & {
    * config, which is only shown to copy. Null when no fixed form covers the tool.
    */
   launch: string | null
+  /** It talks with whoever runs it — Claude Code — so it only opens in a terminal, never in Zeus. */
+  terminalOnly: boolean
   /** What « Mettre à jour » runs, shown before it is run. Empty when the tool has no such step. */
   updateCommands: string[]
 }
@@ -219,6 +221,37 @@ export type ToolVersion = {
 }
 
 export type ToolVersionsPayload = { versions: Record<string, ToolVersion> }
+
+export type RunState = 'running' | 'ok' | 'failed' | 'stopped'
+
+/**
+ * One entry of the journal the page's server keeps: its own lines, an action with the commands it
+ * ran, or a tool started from the page. It lives in that server's memory and goes with it.
+ */
+export type JournalEntry = {
+  id: number
+  kind: 'zeus' | 'action' | 'tool'
+  title: string
+  /** The command line, for a tool; the last one run, for an action. */
+  command: string | null
+  /** Where it runs: a clone's path from the root, or the root itself. */
+  where: string | null
+  /** For a tool started from the page: which one. */
+  toolId: string | null
+  startedAt: string
+  endedAt: string | null
+  state: RunState
+  /** A local page the tool announced, to open. */
+  url: string | null
+  /** How many lines were written so far, including those no longer kept. */
+  lines: number
+  lastLine: string | null
+}
+
+export type JournalPayload = { entries: JournalEntry[] }
+
+/** The lines of one entry from `from` on, numbered from its first line ever written. */
+export type JournalLines = { id: number; from: number; total: number; lines: string[] }
 
 /** One command of an installation, as it was run and how it ended. */
 export type InstallStep = { command: string; ok: boolean; output: string }

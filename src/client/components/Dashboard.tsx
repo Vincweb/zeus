@@ -5,10 +5,12 @@ import { WELCOME_PATH, fleetPath } from '../../shared/routes'
 import {
   cloneRepo,
   fetchDetails,
+  fetchJournal,
   fetchStatus,
   fetchToolVersions,
   saveAccounts,
   saveFollowedRepos,
+  stopRun,
   updateRepo,
 } from '../api'
 import { orchestratorPrompt } from '../claudePrompt'
@@ -21,6 +23,7 @@ import { Archived } from './Archived'
 import { ClaudeActions } from './ClaudeActions'
 import { CloneAllDialog } from './CloneAllDialog'
 import { CloneDialog } from './CloneDialog'
+import { Footer } from './Footer'
 import { NextSteps } from './NextSteps'
 import { Opening } from './Opening'
 import { Orphans } from './Orphans'
@@ -110,6 +113,45 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
   })
   // How the installed tools compare with their latest release: npm and GitHub are asked, so it
   // comes once the page is up, and is kept a while.
+  // The console: what the server did. Asked again every second while it is open or something
+  // runs; otherwise once, and after each action of this page.
+  const [consoleOpen, setConsoleOpen] = useState(false)
+  const [selectedRun, setSelectedRun] = useState<number | null>(null)
+  const [seenUpTo, setSeenUpTo] = useState(0)
+  const journal = useQuery({
+    queryKey: ['journal'],
+    queryFn: fetchJournal,
+    enabled: status.isSuccess,
+    refetchInterval: (query) =>
+      consoleOpen ||
+      (query.state.data?.entries ?? []).some(
+        (entry) => entry.kind !== 'zeus' && entry.state === 'running',
+      )
+        ? 1000
+        : false,
+  })
+  const entries = useMemo(() => journal.data?.entries ?? [], [journal.data])
+  const lastEntry = entries[0]?.id ?? 0
+  // A failure counts until the console has been looked at: open, everything in it is seen.
+  const unseenFailures = consoleOpen
+    ? 0
+    : entries.filter((entry) => entry.state === 'failed' && entry.id > seenUpTo).length
+  const toggleConsole = () => {
+    setSeenUpTo(lastEntry)
+    setConsoleOpen((open) => !open)
+  }
+  const showRun = (id: number) => {
+    setSeenUpTo(lastEntry)
+    setSelectedRun(id)
+    setConsoleOpen(true)
+    void queryClient.invalidateQueries({ queryKey: ['journal'] })
+  }
+  const stop = (id: number) => {
+    void stopRun(id)
+      .catch(() => {})
+      .finally(() => void queryClient.invalidateQueries({ queryKey: ['journal'] }))
+  }
+
   const toolVersions = useQuery({
     queryKey: ['tool-versions', root],
     queryFn: () => fetchToolVersions(root),
@@ -174,6 +216,8 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
 
   const refresh = (askGitHub = false) => {
     fresh.current = askGitHub
+    // What was just done is in the journal: the console and its badge follow.
+    void queryClient.invalidateQueries({ queryKey: ['journal'] })
     return queryClient.invalidateQueries({ queryKey: ['status', root] })
   }
 
@@ -290,7 +334,7 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
   }
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 pt-5 pb-12 sm:px-6">
+    <div className="mx-auto max-w-[1280px] px-4 pt-5 pb-20 sm:px-6">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex items-center gap-2.5">
           <Link
@@ -428,6 +472,10 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
               void refresh()
               void queryClient.invalidateQueries({ queryKey: ['tool-versions', root] })
             }}
+            runs={entries}
+            onStarted={showRun}
+            onShow={showRun}
+            onStop={stop}
           />
         </div>
       )}
@@ -488,10 +536,16 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         />
       </div>
 
-      <footer className="mt-10 text-[11.5px] text-faint">
-        Zeus {__APP_VERSION__} · sert cette machine uniquement · lit GitHub avec ton{' '}
-        <span className="font-mono">gh</span>
-      </footer>
+      <Footer
+        version={home.version}
+        entries={entries}
+        open={consoleOpen}
+        selected={selectedRun}
+        unseenFailures={unseenFailures}
+        onToggle={toggleConsole}
+        onSelect={setSelectedRun}
+        onStop={stop}
+      />
 
       {confirmingAll && single && (
         <CloneAllDialog

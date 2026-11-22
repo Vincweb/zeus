@@ -3,6 +3,9 @@ import type {
   DetailsPayload,
   InstallResult,
   HomeCandidate,
+  JournalEntry,
+  JournalLines,
+  JournalPayload,
   HomesPayload,
   MachineCheck,
   OwnersPayload,
@@ -108,12 +111,37 @@ export const installTool = (root: string, tool: string, repo: string | null, upd
     ...(update ? { update } : {}),
   })
 
-/** Opens a terminal on the machine running the tool: in a clone for a project's tool. */
-export const runTool = (root: string, tool: string, repo: string | null) =>
-  post<{ opened: boolean; command: string }>(
-    '/api/tools/run',
-    repo === null ? { root, tool } : { root, tool, repo },
+/**
+ * Starts a tool: in Zeus, whose console then shows what it prints — the journal entry comes back —
+ * or in Terminal, on macOS. In a clone for a project's tool.
+ */
+export const runTool = (
+  root: string,
+  tool: string,
+  repo: string | null,
+  where: 'zeus' | 'terminal',
+) =>
+  post<JournalEntry | { opened: boolean; command: string }>('/api/tools/run', {
+    root,
+    tool,
+    where,
+    ...(repo === null ? {} : { repo }),
+  })
+
+/** What the server did: its own lines, the actions, the tools started from the page. */
+export const fetchJournal = () => request<JournalPayload>('/api/journal')
+
+/** The lines of one entry of the journal, from line `from` on. */
+export const fetchJournalLines = (id: number, from: number) =>
+  request<JournalLines>(
+    `/api/journal/lines?${query([
+      ['id', String(id)],
+      ['from', String(from)],
+    ])}`,
   )
+
+/** Stops a tool started from the page, by its entry in the journal. */
+export const stopRun = (id: number) => post<{ stopping: boolean }>('/api/journal/stop', { id })
 
 /** How the installed tools compare with their latest release. Slow: npm and GitHub are asked. */
 export const fetchToolVersions = (root: string) =>

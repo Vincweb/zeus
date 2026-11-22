@@ -185,6 +185,19 @@ export const launchOf = (tool: ToolConfig): string[] | null => {
   return null
 }
 
+/**
+ * A tool that talks with whoever runs it, and so only opens in a terminal: Claude Code — which
+ * Zeus invites and never starts on its own (see CLAUDE.md).
+ */
+export const needsTerminal = (tool: ToolConfig) => tool.install?.kind === 'claude-code'
+
+/**
+ * The words of a launch for the server, where nobody can answer a question: `npx` fetches the
+ * package it lacks without asking, which the console then shows.
+ */
+export const headless = (words: string[]) =>
+  words[0] === 'npx' && words[1] !== '--yes' ? ['npx', '--yes', ...words.slice(1)] : words
+
 /** What a click would run, to show beforehand. A development dependency is shown in its npm form. */
 export const previewInstall = (recipe: InstallRecipe): string[] =>
   recipe.kind === 'dev-dependency'

@@ -48,7 +48,7 @@ export const DEFAULT_TOOLS: ToolConfig[] = [
     id: 'claude-code',
     name: 'Claude Code',
     description:
-      'L’agent qui travaille dans tes repos ; Zeus lui répond par MCP. « Lancer » l’ouvre sur le dossier parent.',
+      'L’agent qui travaille dans tes repos ; Zeus lui répond par MCP. Il s’ouvre dans Terminal, sur le dossier parent.',
     url: 'https://claude.com/claude-code',
     scope: 'machine',
     run: 'claude',
