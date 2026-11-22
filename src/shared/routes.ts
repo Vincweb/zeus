@@ -26,6 +26,22 @@ export const fleetPath = (root: string, workspace: string | null = null) =>
 export const setupPath = (dir = '') =>
   dir === '' ? SETUP_PATH : `${SETUP_PATH}?dir=${folder(dir)}`
 
+/** The id of code-atlas among the tools: its run in the journal is the page to link to. */
+export const CODE_ATLAS = 'code-atlas'
+
+/**
+ * One project in the page of a running code-atlas: its `/project?root=` route, on the address the
+ * tool announced. Only the origin is kept — started in a project, code-atlas announces that
+ * project's own page. Null when what was announced is not an address.
+ */
+export const atlasProjectUrl = (announced: string, dir: string) => {
+  try {
+    return `${new URL(announced).origin}/project?root=${folder(dir)}`
+  } catch {
+    return null
+  }
+}
+
 const CLAUDE_PROMPT_LIMIT = 14000
 
 /**

@@ -226,6 +226,12 @@ export const CloseIcon = icon(<path d="m4 4 8 8M12 4l-8 8" />)
 export const FolderIcon = icon(
   <path d="M2.5 4.5a1 1 0 0 1 1-1h2.6l1.4 1.5h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" />,
 )
+export const ArrowUpRightIcon = icon(
+  <>
+    <path d="M5 11 11 5" />
+    <path d="M6 5h5v5" />
+  </>,
+)
 export const ArrowRightIcon = icon(
   <>
     <path d="M3 8h10" />

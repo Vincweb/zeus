@@ -1,6 +1,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { CODE_ATLAS } from '../shared/routes'
 import type { HomeCandidate, ToolConfig, ToolScope } from '../shared/types'
 import { ConfigError } from './errors'
 import { isDirectory } from './folders'
@@ -45,7 +46,7 @@ const SCOPES: ToolScope[] = ['repo', 'machine', 'claude-plugin']
 /** The tools every fleet gets. A `tools` list in the config adds to them. */
 export const DEFAULT_TOOLS: ToolConfig[] = [
   {
-    id: 'code-atlas',
+    id: CODE_ATLAS,
     name: 'code-atlas',
     description:
       "Cartographie et audit d'un projet TypeScript : graphe des features, règles, score, audits IA. Lancé sur le dossier parent, il propose tes projets.",

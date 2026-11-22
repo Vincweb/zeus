@@ -207,7 +207,9 @@ installation with the commands it ran and what they answered. It lives in the se
 is over can be closed.
 
 Where code-atlas is set up, the list of repositories shows the score it **recorded** — its baseline,
-`.code-atlas/baseline.json`, accepted on a given day — not a measure taken now.
+`.code-atlas/baseline.json`, accepted on a given day — not a measure taken now. While code-atlas
+runs under Zeus (« Lancer » on its card), that score is a link: it opens the clone in code-atlas's
+page, at the address code-atlas announced.
 
 For the tools of the machine and of Claude Code, Zeus also says whether a **later release** exists
 — npm for a package, the marketplace's catalog on GitHub for a plugin — and updates them on a

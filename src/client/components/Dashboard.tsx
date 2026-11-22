@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionResult, RepoStatus, Workspace } from '../../shared/types'
-import { WELCOME_PATH, fleetPath } from '../../shared/routes'
+import { CODE_ATLAS, WELCOME_PATH, fleetPath } from '../../shared/routes'
 import {
   cloneRepo,
   fetchDetails,
@@ -169,6 +169,10 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
       .finally(() => void queryClient.invalidateQueries({ queryKey: ['journal'] }))
   }
   const running = entries.filter((entry) => entry.kind !== 'zeus' && entry.state === 'running')
+  // code-atlas started from the page, once it said where it serves: each clone can open in it.
+  const atlasUrl =
+    running.find((entry) => entry.kind === 'tool' && entry.toolId === CODE_ATLAS && entry.url)
+      ?.url ?? null
 
   const toolVersions = useQuery({
     queryKey: ['tool-versions', root],
@@ -557,6 +561,7 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         <RepoTable
           repos={shown}
           accounts={account === null && accounts.length > 1 ? accounts : []}
+          atlasUrl={atlasUrl}
           busy={busy}
           results={results}
           onClone={setCloning}

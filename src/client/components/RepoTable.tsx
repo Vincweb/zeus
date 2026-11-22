@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react'
+import { atlasProjectUrl } from '../../shared/routes'
 import type { ActionResult, CiState, RepoStatus, Workspace } from '../../shared/types'
 import { ago, plural } from '../format'
 import { groupRepos, needsUpdate, noUpdateBecause } from '../model'
 import {
   ArrowDownIcon,
+  ArrowUpRightIcon,
   Badge,
   BranchIcon,
   Button,
@@ -116,31 +119,38 @@ const GitHubCell = ({ repo }: { repo: RepoStatus }) => {
 
 /**
  * What code-atlas recorded in a clone: its score, a reference accepted on a given day — not a
- * measure of now — or just that it is set up there.
+ * measure of now — or just that it is set up there. While code-atlas runs under Zeus, it opens
+ * the clone in code-atlas's page.
  */
-const AtlasCell = ({ atlas }: { atlas: RepoStatus['atlas'] }) => {
+const AtlasCell = ({ atlas, href }: { atlas: RepoStatus['atlas']; href: string | null }) => {
   if (!atlas) return <span className="text-faint">—</span>
   const { score } = atlas
-  if (!score) {
-    return (
-      <span
-        className="text-[12px] text-faint"
-        title="code-atlas est en place ici, sans score enregistré"
-      >
-        en place
-      </span>
-    )
+  let shown: ReactNode
+  let said: string
+  if (score) {
+    const tone = score.overall >= 90 ? 'ok' : score.overall >= 70 ? 'warn' : 'danger'
+    const families = score.families.map((family) => `${family.family} ${family.score}`).join(' · ')
+    const when = score.savedAt ? new Date(score.savedAt).toLocaleDateString('fr') : null
+    shown = <Badge tone={tone}>{score.overall}</Badge>
+    said = `Score de la référence code-atlas${when ? ` enregistrée le ${when}` : ''}${families ? ` — ${families}` : ''}`
+  } else {
+    shown = <span className="text-[12px] text-faint">en place</span>
+    said = 'code-atlas est en place ici, sans score enregistré'
   }
-  const tone = score.overall >= 90 ? 'ok' : score.overall >= 70 ? 'warn' : 'danger'
-  const families = score.families.map((family) => `${family.family} ${family.score}`).join(' · ')
-  const when = score.savedAt ? new Date(score.savedAt).toLocaleDateString('fr') : null
+  if (!href) {
+    return <span title={`${said}\nLance code-atlas pour ouvrir ce projet d’un clic.`}>{shown}</span>
+  }
   return (
-    <Badge
-      tone={tone}
-      title={`Score de la référence code-atlas${when ? ` enregistrée le ${when}` : ''}${families ? ` — ${families}` : ''}`}
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={`Ouvrir ce projet dans code-atlas\n${said}`}
+      className="group inline-flex items-center gap-1 text-accent"
     >
-      {score.overall}
-    </Badge>
+      {shown}
+      <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" width="12" height="12" />
+    </a>
   )
 }
 
@@ -148,6 +158,7 @@ const Row = ({
   repo,
   account,
   atlasColumn,
+  atlasUrl,
   busy,
   result,
   onClone,
@@ -158,6 +169,8 @@ const Row = ({
   account: string | null
   /** The table shows what code-atlas recorded: some repo in view has it. */
   atlasColumn: boolean
+  /** The address code-atlas announced, while it runs under Zeus. */
+  atlasUrl: string | null
   busy: boolean
   result: ActionResult | undefined
   onClone: (repo: RepoStatus) => void
@@ -231,7 +244,10 @@ const Row = ({
       </td>
       {atlasColumn && (
         <td className="px-3 py-2.5">
-          <AtlasCell atlas={repo.atlas} />
+          <AtlasCell
+            atlas={repo.atlas}
+            href={atlasUrl && local ? atlasProjectUrl(atlasUrl, local.path) : null}
+          />
         </td>
       )}
       <td className="px-3 py-2.5 text-[12px] whitespace-nowrap text-muted" title={moved ?? ''}>
@@ -267,6 +283,7 @@ const Row = ({
 export const RepoTable = ({
   repos,
   accounts,
+  atlasUrl,
   busy,
   results,
   onClone,
@@ -275,6 +292,8 @@ export const RepoTable = ({
   repos: RepoStatus[]
   /** The accounts to name on each row; empty when the table shows a single one. */
   accounts: Workspace[]
+  /** The address of the code-atlas started from the page, while it runs: each clone links to it. */
+  atlasUrl: string | null
   busy: ReadonlySet<string>
   results: Readonly<Record<string, ActionResult>>
   onClone: (repo: RepoStatus) => void
@@ -335,6 +354,7 @@ export const RepoTable = ({
                 repo={repo}
                 account={labels.get(repo.workspace) ?? null}
                 atlasColumn={atlasColumn}
+                atlasUrl={atlasUrl}
                 busy={busy.has(repo.id)}
                 result={results[repo.id]}
                 onClone={onClone}
