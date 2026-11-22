@@ -41,7 +41,7 @@ test('needs no config at all: an empty .zeus/ is a root with the defaults', () =
   assert.equal(folderFor(home, 'Vincweb'), 'Vincweb')
   assert.deepEqual(
     toolsOf(home).map((tool) => tool.id),
-    ['claude-code', 'code-atlas', 'claude-context-viewer'],
+    ['code-atlas', 'claude-context-viewer', 'claude-code'],
   )
 })
 
@@ -67,10 +67,11 @@ test('reads what a config adds: accounts left out, a folder renamed, tools on to
   assert.deepEqual(
     toolsOf(home).map((tool) => [tool.id, tool.name]),
     [
-      ['claude-code', 'Claude Code'],
       ['claude-context-viewer', 'claude-context-viewer'],
       ['caudron-plugin', 'caudron-plugin'],
       ['code-atlas', 'mine'],
+      // Claude Code closes the list, after the config's own tools.
+      ['claude-code', 'Claude Code'],
     ],
   )
 })

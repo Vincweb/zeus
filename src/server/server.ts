@@ -21,7 +21,7 @@ import {
   toolsOf,
 } from './home'
 import { isAllowedHost, isForeign, mayAct } from './host'
-import { headless, installTool, launchOf, needsTerminal } from './install'
+import { headless, installTool, launchInClone, launchOf } from './install'
 import { createJournal, stopWithProcess } from './journal'
 import { asArray, asRecord, asString, parseJson, type Json } from './json'
 import { checkMachine, listOwners } from './machine'
@@ -30,6 +30,7 @@ import { createHome, describeTarget, resolveTarget } from './setup'
 import { MISSING_CLIENT, clientIsBuilt, devPage, serveClientFile } from './static'
 import { collectDetails, collectStatus } from './status'
 import { canOpenTerminal, openTerminal } from './terminal'
+import { dependsOn } from './tools'
 import { readToolVersions } from './versions'
 
 const json = (response: http.ServerResponse, payload: unknown, status = 200) => {
@@ -289,7 +290,9 @@ export const serveZeus = ({
             400,
             tool.scope === 'claude-plugin'
               ? `${tool.name} est un plugin : il tourne dans Claude Code`
-              : `${tool.name} ne se lance pas d’un clic : sa commande est à copier`,
+              : tool.install?.kind === 'claude-code'
+                ? 'Claude Code est invité, jamais lancé : « Piloter avec Claude » ouvre une session'
+                : `${tool.name} ne se lance pas d’un clic : sa commande est à copier`,
           )
         }
         const current = await knownStatus(root)
@@ -299,18 +302,23 @@ export const serveZeus = ({
         if (tool.scope === 'repo') {
           const repoId = asString(body.repo)
           const repo = current.repos.find((candidate) => candidate.id === repoId)
-          if (!repo?.local || !standing?.repos.includes(repo.id)) {
-            throw new Refusal(400, `choisis un repo cloné où ${tool.name} est en place`)
+          if (!repo?.local || !standing?.runnable.includes(repo.id)) {
+            throw new Refusal(400, `choisis un repo cloné où ${tool.name} est installé`)
           }
+          const dependency = tool.detect?.dependency
+          const here = launchInClone(
+            tool,
+            dependency !== undefined && dependsOn(repo.local.path, dependency),
+          )
+          if (!here)
+            throw new Refusal(400, `${tool.name} n’est installé ni dans ce repo ni sur la machine`)
+          words.splice(0, words.length, ...here)
           dir = repo.local.path
           where = repo.local.relativePath
         } else if (standing?.installed !== true) {
           throw new Refusal(400, `${tool.name} n’est pas installé sur cette machine`)
         }
         if (!inTerminal) {
-          if (needsTerminal(tool)) {
-            throw new Refusal(400, `${tool.name} se parle : il s’ouvre dans un terminal`)
-          }
           return journal.start({
             title: tool.name,
             words: headless(words),
@@ -348,6 +356,15 @@ export const serveZeus = ({
           throw new Refusal(404, 'rien ne tourne sous ce numéro')
         }
         return { stopping: true }
+      }
+      // Closing an entry that is over, or all of them: names an entry, never a process.
+      case '/api/journal/dismiss': {
+        const body = await bodyOf(request)
+        const closed = journal.dismiss(body.id === 'finished' ? 'finished' : Number(body.id))
+        if (closed === 0 && body.id !== 'finished') {
+          throw new Refusal(400, 'seule une entrée terminée se ferme : arrête-la d’abord')
+        }
+        return { closed }
       }
 
       // How the installed tools compare with their latest release: npm and GitHub are asked, so
@@ -428,8 +445,8 @@ export const serveZeus = ({
       // A prompt handed to the Claude desktop app, on the root. Filled in, never sent.
       case '/api/claude/open': {
         const body = await bodyOf(request)
-        const prompt = asString(body.prompt)
-        if (!prompt) throw new Refusal(400, 'il manque « prompt » dans la requête')
+        // An empty prompt opens a session on the folder, with nothing written in it yet.
+        const prompt = asString(body.prompt) ?? ''
         const root = rootOf(asString(body.root))
         loadHome(root)
         try {

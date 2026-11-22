@@ -169,6 +169,7 @@ test('keeps its own lines in one entry, which is a log and not a run', () => {
   assert.equal(entry?.state, 'ok')
   assert.equal(journal.list().length, 1)
   assert.equal(entry?.lines, 2)
+  assert.equal(entry?.url, null)
 })
 
 test(
@@ -209,3 +210,35 @@ test(
     await until(() => !alive(pid))
   },
 )
+
+test('closes what is over, one entry or all of them, never what runs nor its own lines', async () => {
+  const journal = createJournal()
+  const quiet = console.log
+  console.log = () => {}
+  try {
+    journal.log('zeus : prêt')
+  } finally {
+    console.log = quiet
+  }
+  const fail = () => Promise.resolve({ ok: false, message: 'non' })
+  await journal.track('Échec 1', null, fail, (result) => result)
+  await journal.track('Échec 2', null, fail, (result) => result)
+  const cwd = folder()
+  const running = journal.start({
+    title: 'serveur',
+    words: [node, '-e', 'setInterval(() => {}, 1000)'],
+    cwd,
+    where: '.',
+    toolId: 's',
+  })
+  const first = journal.list().find((entry) => entry.title === 'Échec 1')
+  assert.equal(journal.dismiss(first?.id ?? 0), 1)
+  assert.equal(journal.dismiss(running.id), 0)
+  assert.equal(journal.dismiss('finished'), 1)
+  assert.deepEqual(
+    journal.list().map((entry) => entry.title),
+    ['serveur', 'Serveur Zeus'],
+  )
+  journal.stop(running.id)
+  await until(() => journal.list().find((entry) => entry.id === running.id)?.state === 'stopped')
+})

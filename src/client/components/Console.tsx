@@ -92,11 +92,14 @@ export const Console = ({
   selected,
   onSelect,
   onStop,
+  onDismiss,
 }: {
   entries: JournalEntry[]
   selected: number | null
   onSelect: (id: number) => void
   onStop: (id: number) => void
+  /** Closes an entry that is over. */
+  onDismiss: (id: number) => void
 }) => {
   const current = entries.find((entry) => entry.id === selected) ?? entries[0] ?? null
   const lines = useLines(current)
@@ -123,15 +126,18 @@ export const Console = ({
     <div className="flex h-full min-h-0 flex-col sm:flex-row">
       <ul className="m-0 max-h-36 shrink-0 list-none overflow-y-auto border-b border-line p-1 sm:max-h-none sm:w-72 sm:border-r sm:border-b-0">
         {entries.map((entry) => (
-          <li key={entry.id}>
+          <li
+            key={entry.id}
+            className={cx(
+              'group flex items-start rounded-md hover:bg-raised',
+              entry.id === current.id && 'bg-raised',
+            )}
+          >
             <button
               type="button"
               onClick={() => onSelect(entry.id)}
               aria-current={entry.id === current.id}
-              className={cx(
-                'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-raised',
-                entry.id === current.id && 'bg-raised',
-              )}
+              className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5 text-left"
             >
               <span className="mt-0.5 flex size-3.5 shrink-0 items-center justify-center">
                 <StateMark state={entry.state} />
@@ -144,6 +150,17 @@ export const Console = ({
                 </span>
               </span>
             </button>
+            {entry.kind !== 'zeus' && entry.state !== 'running' && (
+              <button
+                type="button"
+                onClick={() => onDismiss(entry.id)}
+                title="Fermer"
+                aria-label={`Fermer ${entry.title}`}
+                className="m-1 shrink-0 rounded p-1 text-faint opacity-60 group-hover:opacity-100 hover:bg-line-soft hover:text-text focus-visible:opacity-100"
+              >
+                <CrossIcon width="11" height="11" />
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -171,9 +188,13 @@ export const Console = ({
             {current.kind === 'tool' && current.state === 'running' && (
               <Button onClick={() => onStop(current.id)}>Arrêter</Button>
             )}
+            {current.kind !== 'zeus' && current.state !== 'running' && (
+              <Button onClick={() => onDismiss(current.id)}>Fermer</Button>
+            )}
           </span>
         </div>
-        {current.command && (
+        {/* A tool's line heads its output; an action writes each of its commands in it already. */}
+        {current.kind === 'tool' && current.command && (
           <div className="border-b border-line-soft px-3 py-1 font-mono text-[11.5px] break-all text-muted">
             $ {current.command}
           </div>

@@ -42,6 +42,17 @@
   --animate-shimmer: shimmer 1.7s ease-in-out infinite;
   --animate-slide: slide 1.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
   --animate-ring: ring 2.2s ease-out infinite;
+  /* The terminal arrives from the bottom of the page. */
+  --animate-sheet: sheet 0.22s ease-out;
+
+  @keyframes sheet {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
 
   @keyframes spark {
     to {

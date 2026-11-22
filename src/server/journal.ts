@@ -116,7 +116,8 @@ export const createJournal = () => {
     if (entry.kept.length > MAX_LINES) entry.kept.shift()
     entry.lines += 1
     if (clean.trim() !== '') entry.lastLine = clean
-    if (entry.url === null) entry.url = LOCAL_URL.exec(clean)?.[0] ?? null
+    // A page to open is what a tool announces; the server's own address is not one.
+    if (entry.kind === 'tool' && entry.url === null) entry.url = LOCAL_URL.exec(clean)?.[0] ?? null
   }
 
   /** Text as a stream delivers it: whole lines are written, a carriage return rewrites the last. */
@@ -272,6 +273,20 @@ export const createJournal = () => {
     }
   }
 
+  /**
+   * Closes entries that are over: one by its id, or all of them. What still runs is stopped first,
+   * not closed; the server's own lines stay. Gives how many went.
+   */
+  const dismiss = (id: number | 'finished') => {
+    const before = entries.length
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index]
+      if (!entry || entry === zeus || entry.state === 'running') continue
+      if (id === 'finished' || entry.id === id) entries.splice(index, 1)
+    }
+    return before - entries.length
+  }
+
   const list = (): JournalEntry[] => [...entries].reverse().map(publicOf)
 
   const linesOf = (id: number, from: number): JournalLines | null => {
@@ -282,7 +297,7 @@ export const createJournal = () => {
     return { id, from: start, total: entry.lines, lines: entry.kept.slice(start - first) }
   }
 
-  return { log, track, recordCommand, start, stop, stopAll, list, linesOf }
+  return { log, track, recordCommand, start, stop, stopAll, dismiss, list, linesOf }
 }
 
 /**

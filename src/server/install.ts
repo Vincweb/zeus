@@ -46,8 +46,15 @@ export const toRecipe = (value: unknown, where: string): InstallRecipe | undefin
             ? undefined
             : named('marketplace', MARKETPLACE, 'un dépôt GitHub « compte/nom »'),
       }
-    case 'npm-global':
-      return { kind: 'npm-global', package: named('package', PACKAGE, 'un nom de paquet npm') }
+    case 'npm-global': {
+      if (recipe.from !== undefined && recipe.from !== 'npmjs') {
+        return refuse('"from" ne peut valoir que "npmjs"')
+      }
+      const name = named('package', PACKAGE, 'un nom de paquet npm')
+      return recipe.from === 'npmjs'
+        ? { kind: 'npm-global', package: name, from: 'npmjs' }
+        : { kind: 'npm-global', package: name }
+    }
     case 'dev-dependency':
       return { kind: 'dev-dependency', package: named('package', PACKAGE, 'un nom de paquet npm') }
     case 'claude-code':
@@ -56,6 +63,21 @@ export const toRecipe = (value: unknown, where: string): InstallRecipe | undefin
       return refuse('"kind" doit valoir claude-plugin, npm-global, dev-dependency ou claude-code')
   }
 }
+
+/** The public npm registry, where Zeus's own tools are published. */
+export const NPMJS = 'https://registry.npmjs.org/'
+
+/**
+ * The option that sends one npm command to the public registry, for a package published there:
+ * for a scoped name, that scope's registry — which `~/.npmrc` may map elsewhere — else the default
+ * one. Nothing is written: it holds for this command only.
+ */
+export const registryArgs = (recipe: { package: string; from?: 'npmjs' }) =>
+  recipe.from !== 'npmjs'
+    ? []
+    : recipe.package.startsWith('@')
+      ? [`--${recipe.package.slice(0, recipe.package.indexOf('/'))}:registry=${NPMJS}`]
+      : [`--registry=${NPMJS}`]
 
 export type PackageManager = 'bun' | 'pnpm' | 'yarn' | 'npm'
 
@@ -114,7 +136,13 @@ export const planInstall = (recipe: InstallRecipe, dir: string): Step[] => {
         { command: 'claude', args: ['plugin', 'install', recipe.plugin], cwd: dir },
       ]
     case 'npm-global':
-      return [{ command: 'npm', args: ['install', '-g', recipe.package], cwd: dir }]
+      return [
+        {
+          command: 'npm',
+          args: ['install', '-g', recipe.package, ...registryArgs(recipe)],
+          cwd: dir,
+        },
+      ]
     case 'dev-dependency':
       return [
         {
@@ -137,7 +165,13 @@ export const planInstall = (recipe: InstallRecipe, dir: string): Step[] => {
 export const planUpdate = (recipe: InstallRecipe, dir: string): Step[] | null => {
   switch (recipe.kind) {
     case 'npm-global':
-      return [{ command: 'npm', args: ['install', '-g', `${recipe.package}@latest`], cwd: dir }]
+      return [
+        {
+          command: 'npm',
+          args: ['install', '-g', `${recipe.package}@latest`, ...registryArgs(recipe)],
+          cwd: dir,
+        },
+      ]
     case 'claude-plugin':
       return [
         // The catalog first: an update only sees what the marketplace last said.
@@ -176,8 +210,6 @@ const COMMAND = /^[a-z0-9][a-z0-9._-]*$/i
 export const launchOf = (tool: ToolConfig): string[] | null => {
   const recipe = tool.install
   if (recipe?.kind === 'dev-dependency') return ['npx', recipe.package]
-  // In the parent folder, whose `.mcp.json` hands it Zeus.
-  if (recipe?.kind === 'claude-code') return ['claude']
   const command = tool.detect?.command
   if (recipe?.kind === 'npm-global' && command !== undefined && COMMAND.test(command)) {
     return [command]
@@ -186,10 +218,16 @@ export const launchOf = (tool: ToolConfig): string[] | null => {
 }
 
 /**
- * A tool that talks with whoever runs it, and so only opens in a terminal: Claude Code — which
- * Zeus invites and never starts on its own (see CLAUDE.md).
+ * What « Lancer » types for a project's tool in one clone: `npx`, which finds the clone's own copy,
+ * where the clone depends on it; elsewhere, the copy installed for the whole machine, by its
+ * program. Null when neither is there.
  */
-export const needsTerminal = (tool: ToolConfig) => tool.install?.kind === 'claude-code'
+export const launchInClone = (tool: ToolConfig, dependsHere: boolean): string[] | null => {
+  if (tool.install?.kind !== 'dev-dependency') return null
+  if (dependsHere) return ['npx', tool.install.package]
+  const command = tool.detect?.command
+  return command !== undefined && COMMAND.test(command) ? [command] : null
+}
 
 /**
  * The words of a launch for the server, where nobody can answer a question: `npx` fetches the
@@ -339,7 +377,9 @@ const runPlan = async (
       output: missing ? `${step.command} est introuvable sur cette machine` : tailOf(result),
     })
     if (!result.ok && !step.optional) {
-      const hint = recipe.kind === 'claude-plugin' ? null : registryHint(tailOf(result))
+      // The whole output: npm names the registry it asked well before its last lines.
+      const hint =
+        recipe.kind === 'claude-plugin' ? null : registryHint(`${result.stderr}\n${result.stdout}`)
       return {
         tool,
         repo,

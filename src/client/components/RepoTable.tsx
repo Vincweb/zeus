@@ -1,6 +1,6 @@
 import type { ActionResult, CiState, RepoStatus, Workspace } from '../../shared/types'
 import { ago, plural } from '../format'
-import { groupRepos } from '../model'
+import { groupRepos, needsUpdate, noUpdateBecause } from '../model'
 import {
   ArrowDownIcon,
   Badge,
@@ -114,9 +114,40 @@ const GitHubCell = ({ repo }: { repo: RepoStatus }) => {
   )
 }
 
+/**
+ * What code-atlas recorded in a clone: its score, a reference accepted on a given day — not a
+ * measure of now — or just that it is set up there.
+ */
+const AtlasCell = ({ atlas }: { atlas: RepoStatus['atlas'] }) => {
+  if (!atlas) return <span className="text-faint">—</span>
+  const { score } = atlas
+  if (!score) {
+    return (
+      <span
+        className="text-[12px] text-faint"
+        title="code-atlas est en place ici, sans score enregistré"
+      >
+        en place
+      </span>
+    )
+  }
+  const tone = score.overall >= 90 ? 'ok' : score.overall >= 70 ? 'warn' : 'danger'
+  const families = score.families.map((family) => `${family.family} ${family.score}`).join(' · ')
+  const when = score.savedAt ? new Date(score.savedAt).toLocaleDateString('fr') : null
+  return (
+    <Badge
+      tone={tone}
+      title={`Score de la référence code-atlas${when ? ` enregistrée le ${when}` : ''}${families ? ` — ${families}` : ''}`}
+    >
+      {score.overall}
+    </Badge>
+  )
+}
+
 const Row = ({
   repo,
   account,
+  atlasColumn,
   busy,
   result,
   onClone,
@@ -125,6 +156,8 @@ const Row = ({
   repo: RepoStatus
   /** The label of its account, shown when several accounts share the table. */
   account: string | null
+  /** The table shows what code-atlas recorded: some repo in view has it. */
+  atlasColumn: boolean
   busy: boolean
   result: ActionResult | undefined
   onClone: (repo: RepoStatus) => void
@@ -196,16 +229,26 @@ const Row = ({
       <td className="px-3 py-2.5">
         <GitHubCell repo={repo} />
       </td>
+      {atlasColumn && (
+        <td className="px-3 py-2.5">
+          <AtlasCell atlas={repo.atlas} />
+        </td>
+      )}
       <td className="px-3 py-2.5 text-[12px] whitespace-nowrap text-muted" title={moved ?? ''}>
         {ago(moved) || '—'}
       </td>
       <td className="py-2.5 pr-4 pl-3 text-right">
         {local ? (
           <Button
-            variant={repo.sync === 'behind' ? 'primary' : 'ghost'}
+            variant={needsUpdate(repo) ? 'primary' : 'ghost'}
             busy={busy}
+            disabled={!needsUpdate(repo)}
             onClick={() => onUpdate(repo)}
-            title="git fetch, puis avance rapide si rien ne s’y oppose. Jamais de merge."
+            title={
+              needsUpdate(repo)
+                ? 'git fetch, puis avance rapide si rien ne s’y oppose. Jamais de merge.'
+                : `Rien à mettre à jour : ${noUpdateBecause(repo)}`
+            }
           >
             {!busy && <ArrowDownIcon />}
             Mettre à jour
@@ -245,15 +288,31 @@ export const RepoTable = ({
     )
   }
   const labels = new Map(accounts.map((account) => [account.login, account.label]))
+  // A column only where it says something: a fleet without code-atlas gets none.
+  const atlasColumn = repos.some((repo) => repo.atlas !== null)
+  const columns = atlasColumn ? 7 : 6
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-panel shadow-card">
-      <table className="w-full min-w-[920px] border-collapse text-left">
+      <table
+        className={cx(
+          'w-full border-collapse text-left',
+          atlasColumn ? 'min-w-[1000px]' : 'min-w-[920px]',
+        )}
+      >
         <thead>
           <tr className="text-[11px] font-semibold tracking-wide text-faint uppercase">
             <th className="py-2.5 pr-3 pl-4 font-semibold">Repo</th>
             <th className="px-3 py-2.5 font-semibold">Clone</th>
             <th className="px-3 py-2.5 font-semibold">État</th>
             <th className="px-3 py-2.5 font-semibold">GitHub</th>
+            {atlasColumn && (
+              <th
+                className="px-3 py-2.5 font-semibold whitespace-nowrap"
+                title="Le score que code-atlas a enregistré dans le repo : sa référence, pas une mesure du jour"
+              >
+                code-atlas
+              </th>
+            )}
             <th className="px-3 py-2.5 font-semibold">Dernier commit</th>
             <th className="py-2.5 pr-4 pl-3" />
           </tr>
@@ -262,7 +321,7 @@ export const RepoTable = ({
           <tbody key={group.name}>
             <tr className="border-t border-line bg-raised">
               <th
-                colSpan={6}
+                colSpan={columns}
                 scope="colgroup"
                 className="px-4 py-1.5 text-[12px] font-semibold text-muted"
               >
@@ -275,6 +334,7 @@ export const RepoTable = ({
                 key={repo.id}
                 repo={repo}
                 account={labels.get(repo.workspace) ?? null}
+                atlasColumn={atlasColumn}
                 busy={busy.has(repo.id)}
                 result={results[repo.id]}
                 onClone={onClone}

@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type { ToolConfig, ToolVersion } from '../shared/types'
 import { exec } from './exec'
+import { registryArgs } from './install'
 import { asArray, asString, at, parseJson } from './json'
 import { pluginVersion } from './tools'
 
@@ -46,9 +47,13 @@ const firstLine = (text: string) => text.trim().split('\n')[0]?.trim() || null
 const LOOKUP_TIMEOUT_MS = 6000
 
 /** The latest release of an npm package, as the registry this machine uses says. */
-const npmLatest = (name: string) =>
-  remembered(`npm:${name}`, async () => {
-    const result = await exec('npm', ['view', name, 'version'], { timeoutMs: LOOKUP_TIMEOUT_MS })
+const npmLatest = (name: string, from?: 'npmjs') =>
+  remembered(`npm:${name}:${from ?? ''}`, async () => {
+    const result = await exec(
+      'npm',
+      ['view', name, 'version', ...registryArgs({ package: name, from })],
+      { timeoutMs: LOOKUP_TIMEOUT_MS },
+    )
     return result.ok ? firstLine(result.stdout) : null
   })
 
@@ -132,9 +137,15 @@ const versionOf = async (tool: ToolConfig): Promise<ToolVersion | null> => {
   // A project's tool is left out: its version in each project is that project's business.
   const found =
     recipe?.kind === 'npm-global'
-      ? { installed: await npmInstalled(recipe.package), latest: () => npmLatest(recipe.package) }
+      ? {
+          installed: await npmInstalled(recipe.package),
+          latest: () => npmLatest(recipe.package, recipe.from),
+        }
       : recipe?.kind === 'claude-code'
-        ? { installed: await claudeInstalled(), latest: () => npmLatest(CLAUDE_CODE_PACKAGE) }
+        ? {
+            installed: await claudeInstalled(),
+            latest: () => npmLatest(CLAUDE_CODE_PACKAGE, 'npmjs'),
+          }
         : recipe?.kind === 'claude-plugin' && recipe.marketplace
           ? {
               installed: pluginVersion(recipe.plugin),

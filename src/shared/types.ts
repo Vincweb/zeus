@@ -107,6 +107,19 @@ export type RepoStatus = {
   workspace: string
   /** The folder the clone sits in under the root, when it sits in one. */
   group: string | null
+  /** code-atlas in this clone: null when it is not set up here, with its recorded score if any. */
+  atlas: { score: AtlasScore | null } | null
+}
+
+/**
+ * The score code-atlas recorded for a project — its baseline, written when the state of the code
+ * was accepted. A reference, not a measure taken now.
+ */
+export type AtlasScore = {
+  /** Out of 100. */
+  overall: number
+  savedAt: string | null
+  families: { family: string; score: number }[]
 }
 
 export type OrphanReason =
@@ -153,13 +166,17 @@ export type ToolScope = 'repo' | 'machine' | 'claude-plugin'
 export type InstallRecipe =
   /** A Claude Code plugin, `name@marketplace`, and the GitHub repository of that marketplace. */
   | { kind: 'claude-plugin'; plugin: string; marketplace?: string }
-  /** A command-line tool installed for the whole machine. */
-  | { kind: 'npm-global'; package: string }
+  /**
+   * A command-line tool installed for the whole machine. `from: 'npmjs'`: published on the public
+   * npm registry, and taken from there whatever `~/.npmrc` maps its scope to — a scope often points
+   * at a private registry for other packages of the same name.
+   */
+  | { kind: 'npm-global'; package: string; from?: 'npmjs' }
   /** A development dependency, added to one clone with that clone's own package manager. */
   | { kind: 'dev-dependency'; package: string }
   /**
    * Claude Code itself: installed with its own installer, shown to copy; updated with
-   * `claude update`; launched as `claude` in the parent folder.
+   * `claude update`. Never launched from Zeus: « Piloter avec Claude » invites it, in the app.
    */
   | { kind: 'claude-code' }
 
@@ -182,7 +199,7 @@ export type ToolConfig = {
     dependency?: string
     /** Scope `claude-plugin`: the key in Claude Code's installed plugins, `name@marketplace`. */
     plugin?: string
-    /** Scope `machine`: a program to find on the PATH. */
+    /** A program to find on the PATH: the tool itself for scope `machine`; for scope `repo`, a copy installed for the whole machine. */
     command?: string
   }
 }
@@ -201,12 +218,20 @@ export type ToolStatus = ToolConfig & {
   /** Scope `repo`: the ids of the clones it can be installed in — npm projects that lack it. */
   installable: string[]
   /**
+   * Scope `repo`, with a `detect.command`: whether the tool is also installed for the whole machine,
+   * its program on the PATH. Null when nothing says.
+   */
+  global: boolean | null
+  /**
+   * Scope `repo`: the clones « Lancer » can start it in — those that depend on it, and, when it is
+   * installed for the whole machine, any where it is in place. A config file alone is not enough.
+   */
+  runnable: string[]
+  /**
    * What « Lancer » types in a terminal, derived from the recipe — never the free `run` of a
    * config, which is only shown to copy. Null when no fixed form covers the tool.
    */
   launch: string | null
-  /** It talks with whoever runs it — Claude Code — so it only opens in a terminal, never in Zeus. */
-  terminalOnly: boolean
   /** What « Mettre à jour » runs, shown before it is run. Empty when the tool has no such step. */
   updateCommands: string[]
 }

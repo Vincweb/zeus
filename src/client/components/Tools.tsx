@@ -26,11 +26,13 @@ const SCOPES: Record<ToolStatus['scope'], string> = {
 const stateOf = (
   tool: ToolStatus,
   version: ToolVersion | undefined,
-): { label: string; tone: Tone } => {
+): { label: string; tone: Tone } | null => {
+  // A project's tool: where it is in place shows in the list of repos; here, the machine.
   if (tool.scope === 'repo') {
-    return tool.repos.length > 0
-      ? { label: `En place sur ${plural(tool.repos.length, 'repo', 'repos')}`, tone: 'ok' }
-      : { label: 'En place sur aucun repo', tone: 'neutral' }
+    if (tool.global === null) return null
+    return tool.global
+      ? { label: 'Installé sur la machine', tone: 'ok' }
+      : { label: 'Pas installé sur la machine', tone: 'neutral' }
   }
   if (tool.installed === null) return { label: 'À la demande', tone: 'neutral' }
   const installed = version?.installed ?? tool.version
@@ -39,12 +41,12 @@ const stateOf = (
     : { label: 'Pas installé', tone: 'warn' }
 }
 
-/** A command that cannot be launched from here, to copy: elsewhere than on macOS, or with no fixed form. */
+/** A tool's command, copied with one click on its icon. */
 const CopyCommand = ({ command }: { command: string }) => {
   const [copied, setCopied] = useState(false)
   return (
     <Button
-      title={command}
+      title={copied ? 'Commande copiée' : `Copier la commande : ${command}`}
       aria-label={`Copier la commande : ${command}`}
       onClick={() => {
         void navigator.clipboard.writeText(command).then(() => {
@@ -53,17 +55,17 @@ const CopyCommand = ({ command }: { command: string }) => {
         })
       }}
     >
-      {copied ? <CheckIcon /> : <CopyIcon />}
-      {copied ? 'Copiée' : 'Copier la commande'}
+      {copied ? <CheckIcon className="text-ok" /> : <CopyIcon />}
     </Button>
   )
 }
 
 /**
- * One tool, in a few lines: what it is, where it stands, and what a click does with it — run it in
- * Zeus, whose console shows what it prints, or open it in Terminal; install it, bring it up to
- * date. Installing and updating open a window that shows the commands first. While it runs, the
- * card says so, and offers its output, its page and a way to stop it.
+ * One tool, in a few lines: what it is, where it stands, and what a click does with it. On the
+ * left, the one thing to do — launch the tool in Zeus, bring it up to date, install it; on the
+ * right, as icons, opening it in Terminal and copying its command. A tool is launched where it is
+ * installed, and offered for installation where it is not. Claude Code is not launched from here:
+ * « Piloter avec Claude » invites it.
  */
 const ToolCard = ({
   root,
@@ -91,19 +93,20 @@ const ToolCard = ({
   onShow: (id: number) => void
   onStop: (id: number) => void
 }) => {
-  const [where, setWhere] = useState(tool.repos[0] ?? '')
+  const [where, setWhere] = useState(tool.runnable[0] ?? '')
   const [launching, setLaunching] = useState<'zeus' | 'terminal' | null>(null)
   const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null)
   const state = stateOf(tool, version)
   const perRepo = tool.scope === 'repo'
-  const here = tool.repos.includes(where) ? where : (tool.repos[0] ?? '')
+  const here = tool.runnable.includes(where) ? where : (tool.runnable[0] ?? '')
+  const place = perRepo ? ` dans ${names.get(here) ?? here}` : ''
 
-  // A project's tool runs in a clone where it is in place; a machine's one once it is installed.
+  // Where it is installed: in a clone that depends on it, or on the machine.
   const ready = tool.launch !== null && (perRepo ? here !== '' : tool.installed === true)
-  const canStart = ready && !tool.terminalOnly
+  const canStart = ready
   const canTerminal = ready && terminal
-  // Otherwise its command, to copy — the configured one first: `npx …` runs even uninstalled.
-  const copyable = canStart || canTerminal ? null : (tool.run ?? tool.launch ?? null)
+  // Installed, its own program; otherwise the configured line, which runs without installing.
+  const command = ready ? (tool.launch ?? tool.run) : (tool.run ?? tool.launch)
   const canInstall = tool.install
     ? tool.install.kind === 'dev-dependency'
       ? tool.installable.length > 0
@@ -111,6 +114,8 @@ const ToolCard = ({
     : tool.installHint !== undefined && tool.installed !== true
   const canUpdate = version?.outdated === true && tool.updateCommands.length > 0
 
+  const failed = (error: unknown) =>
+    setSaid({ ok: false, text: error instanceof Error ? error.message : 'la requête a échoué' })
   const launch = (target: 'zeus' | 'terminal') => {
     setLaunching(target)
     setSaid(null)
@@ -119,15 +124,9 @@ const ToolCard = ({
         if ('id' in answer) onStarted(answer.id)
         else setSaid({ ok: true, text: 'Ouvert dans Terminal' })
       })
-      .catch((error: unknown) =>
-        setSaid({
-          ok: false,
-          text: error instanceof Error ? error.message : 'la requête a échoué',
-        }),
-      )
+      .catch(failed)
       .finally(() => setLaunching(null))
   }
-  const place = perRepo ? ` dans ${names.get(here) ?? here}` : ''
 
   return (
     <article className="flex flex-col rounded-xl border border-line bg-panel p-3 shadow-card">
@@ -155,7 +154,7 @@ const ToolCard = ({
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Badge tone={state.tone}>{state.label}</Badge>
+        {state && <Badge tone={state.tone}>{state.label}</Badge>}
         {version?.latest &&
           (version.outdated ? (
             <Badge tone="info" title={`Installé : ${version.installed ?? '?'}`}>
@@ -164,14 +163,16 @@ const ToolCard = ({
           ) : (
             <Badge title={`Dernière version : ${version.latest}`}>à jour</Badge>
           ))}
+        {run && (
+          <Badge tone="info">
+            <Spinner className="size-3" /> En cours
+          </Badge>
+        )}
       </div>
 
       <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-3">
-        {run && (
+        {run ? (
           <>
-            <Badge tone="info">
-              <Spinner className="size-3" /> En cours
-            </Badge>
             <Button onClick={() => onShow(run.id)}>Voir la sortie</Button>
             {run.url && (
               <a
@@ -185,57 +186,61 @@ const ToolCard = ({
             )}
             <Button onClick={() => onStop(run.id)}>Arrêter</Button>
           </>
-        )}
-        {!run && (canStart || canTerminal) && perRepo && tool.repos.length > 1 && (
-          <select
-            aria-label={`Repo où lancer ${tool.name}`}
-            value={here}
-            onChange={(event) => setWhere(event.target.value)}
-            className="h-7 max-w-[45%] rounded-md border border-line bg-panel px-1.5 text-[12px] text-text"
-          >
-            {tool.repos.map((id) => (
-              <option key={id} value={id}>
-                {names.get(id) ?? id}
-              </option>
-            ))}
-          </select>
-        )}
-        {!run && canStart && (
-          <Button
-            busy={launching === 'zeus'}
-            onClick={() => launch('zeus')}
-            title={`Lance ${tool.launch ?? ''}${place} — sa sortie s’affiche dans la console`}
-          >
-            {launching !== 'zeus' && <PlayIcon />}
-            Lancer
-            {perRepo && tool.repos.length === 1 && (
-              <span className="text-faint">· {names.get(here) ?? here}</span>
+        ) : (
+          <>
+            {canStart && perRepo && tool.runnable.length > 1 && (
+              <select
+                aria-label={`Repo où lancer ${tool.name}`}
+                value={here}
+                onChange={(event) => setWhere(event.target.value)}
+                className="h-7 max-w-[45%] rounded-md border border-line bg-panel px-1.5 text-[12px] text-text"
+              >
+                {tool.runnable.map((id) => (
+                  <option key={id} value={id}>
+                    {names.get(id) ?? id}
+                  </option>
+                ))}
+              </select>
             )}
-          </Button>
+            {canStart && (
+              <Button
+                busy={launching === 'zeus'}
+                onClick={() => launch('zeus')}
+                title={`Lance ${tool.launch ?? ''}${place} — ce qu’il écrit s’affiche dans le terminal de Zeus`}
+              >
+                {launching !== 'zeus' && <PlayIcon />}
+                Lancer
+                {perRepo && tool.runnable.length === 1 && (
+                  <span className="text-faint">· {names.get(here) ?? here}</span>
+                )}
+              </Button>
+            )}
+            {canUpdate && (
+              <Button variant="primary" onClick={onUpdate}>
+                Mettre à jour…
+              </Button>
+            )}
+            {canInstall && (
+              <Button onClick={onInstall}>
+                <DownloadIcon />
+                Installer…
+              </Button>
+            )}
+          </>
         )}
-        {!run && canTerminal && (
-          <Button
-            busy={launching === 'terminal'}
-            onClick={() => launch('terminal')}
-            title={`Ouvre Terminal${place} et lance ${tool.launch ?? ''}`}
-            aria-label={`Ouvrir ${tool.name} dans Terminal`}
-          >
-            {launching !== 'terminal' && <TerminalIcon />}
-            {tool.terminalOnly && 'Ouvrir dans Terminal'}
-          </Button>
-        )}
-        {copyable && <CopyCommand command={copyable} />}
-        {canUpdate && (
-          <Button variant="primary" onClick={onUpdate}>
-            Mettre à jour…
-          </Button>
-        )}
-        {canInstall && (
-          <Button onClick={onInstall}>
-            <DownloadIcon />
-            Installer…
-          </Button>
-        )}
+        <span className="ml-auto flex items-center gap-1.5">
+          {!run && canTerminal && (
+            <Button
+              busy={launching === 'terminal'}
+              onClick={() => launch('terminal')}
+              title={`Ouvrir dans Terminal${place} : ${tool.launch ?? ''}`}
+              aria-label={`Ouvrir ${tool.name} dans Terminal`}
+            >
+              {launching !== 'terminal' && <TerminalIcon />}
+            </Button>
+          )}
+          {command && <CopyCommand command={command} />}
+        </span>
       </div>
       {said && (
         <p
@@ -300,7 +305,7 @@ export const Tools = ({
       >
         <p className="text-[12.5px] text-muted">
           Ceux de Zeus, plus ceux que <span className="font-mono">.zeus/config.json</span> ajoute. «
-          Lancer » le démarre dans Zeus, et la console en bas de page montre ce qu’il écrit
+          Lancer » le démarre dans Zeus, et son terminal (en haut de page) montre ce qu’il écrit
           {terminal ? ' ; l’icône de terminal l’ouvre plutôt dans Terminal' : ''}. Installer et
           mettre à jour montrent d’abord ce qui sera lancé.
         </p>

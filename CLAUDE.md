@@ -58,6 +58,7 @@ src/server/
   tools.ts              où chaque outil est en place
   install.ts            les recettes d'installation : lecture, plan, exécution, mise à jour, lancement
   terminal.ts           ouvrir Terminal sur un outil (macOS)
+  atlas.ts              le score que code-atlas a enregistré dans un clone
   journal.ts            ce que le serveur de la page a fait : ses lignes, les actions, les outils lancés
   versions.ts           les outils de la machine et de Claude Code sont-ils à jour
   selfCommand.ts        la commande qui relance ce Zeus, pour un prompt donné à un agent
@@ -71,7 +72,8 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
   components/Setup      choisir le dossier parent, sur une machine qui n'a jamais vu Zeus
   components/Opening    l'écran pendant la lecture d'une flotte
   components/Dashboard  une flotte : onglets par compte, repos, actions, outils
-  components/Footer     la barre du bas : version, liens, et la console (Console) du journal
+  components/TerminalSheet  le terminal de Zeus : le journal du serveur (Console), qui monte du bas
+  components/Footer     la fin de page : version, liens
 ```
 
 ## Règles
@@ -97,8 +99,8 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
   arrivent en arguments, cités par AppleScript (`quoted form of`), jamais collés dans le script.
 - **Un outil lancé de la page tourne sous le serveur** (`journal.ts`) : `spawn` sans shell ni
   stdin, dans son propre groupe de processus, sa sortie gardée (bornée) pour la console. Il
-  s'arrête d'un clic ou avec le serveur, jamais après. Claude Code ne s'y lance pas : il se parle,
-  et il est invité, jamais lancé — il ne s'ouvre que dans Terminal.
+  s'arrête d'un clic ou avec le serveur, jamais après. Claude Code ne se lance ni là ni dans
+  Terminal : il est invité, jamais lancé — « Piloter avec Claude » ouvre une session dans l'app.
 - **Le journal n'écrit que pour la page.** Seules les commandes d'une action y entrent (pas les
   lectures d'un statut), et rien de ce que partagent la CLI et `zeus mcp` n'imprime : leur sortie
   est la leur. Il vit en mémoire et part avec le serveur ; le processus MCP ne le voit pas.
@@ -108,6 +110,9 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
   libre. Dans un clone, on n'installe que s'il est propre, et on dit ce qui reste à commiter. Ce
   que « Lancer » tape se déduit aussi de la recette (`launchOf`) : le `run` d'une config est
   seulement montré, à copier.
+- **Zeus rassemble les résultats d'un outil, il ne les calcule pas** : le score d'un clone est celui
+  que code-atlas a enregistré (`.code-atlas/baseline.json`, sa référence), lu tel quel (`atlas.ts`)
+  — un fichier absent ou d'une autre forme ne donne aucun score.
 - **« À jour » ne vaut que pour la machine et Claude Code** (`versions.ts`, à part du statut : npm
   et GitHub sont interrogés). La version d'un outil dans un projet relève des dépendances de ce
   projet — voir « Frontière ».

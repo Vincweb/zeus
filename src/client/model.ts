@@ -1,5 +1,21 @@
 import type { RepoDetail, RepoStatus, Workspace } from '../shared/types'
 
+/**
+ * Whether « Mettre à jour » has something to bring: GitHub holds commits this clone lacks. A clone
+ * that is up to date, that diverged — to settle by hand — or whose branch follows nothing has none.
+ */
+export const needsUpdate = (repo: RepoStatus) => repo.local !== null && repo.sync === 'behind'
+
+/** Why « Mettre à jour » has nothing to do for a clone, in a few words. */
+export const noUpdateBecause = (repo: RepoStatus) =>
+  repo.sync === 'diverged'
+    ? 'la branche a divergé de GitHub : à régler à la main'
+    : repo.sync === 'ahead'
+      ? 'à jour avec GitHub — des commits locaux restent à pousser'
+      : repo.sync === 'no-upstream'
+        ? 'la branche ne suit aucune branche distante'
+        : 'déjà à jour avec GitHub'
+
 /** How many repositories GitHub lists for an account that the root does not follow. */
 export const leftOutOf = (workspace: Workspace) => {
   if (workspace.followedRepos === null) return 0

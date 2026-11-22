@@ -30,7 +30,10 @@ const CLAUDE_PROMPT_LIMIT = 14000
 
 /**
  * Opens a new session in the Code tab of the Claude desktop app, on a folder, with a prompt filled
- * in — and never sent: the person reads it, edits it, and sends it themselves.
+ * in — and never sent: the person reads it, edits it, and sends it themselves. Without a prompt,
+ * the session opens empty.
  */
 export const claudeLink = (prompt: string, dir: string) =>
-  `claude://code/new?q=${encodeURIComponent(prompt.slice(0, CLAUDE_PROMPT_LIMIT))}&folder=${encodeURIComponent(dir)}`
+  prompt === ''
+    ? `claude://code/new?folder=${encodeURIComponent(dir)}`
+    : `claude://code/new?q=${encodeURIComponent(prompt.slice(0, CLAUDE_PROMPT_LIMIT))}&folder=${encodeURIComponent(dir)}`

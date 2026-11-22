@@ -45,30 +45,17 @@ const SCOPES: ToolScope[] = ['repo', 'machine', 'claude-plugin']
 /** The tools every fleet gets. A `tools` list in the config adds to them. */
 export const DEFAULT_TOOLS: ToolConfig[] = [
   {
-    id: 'claude-code',
-    name: 'Claude Code',
-    description:
-      'L’agent qui travaille dans tes repos ; Zeus lui répond par MCP. Il s’ouvre dans Terminal, sur le dossier parent.',
-    url: 'https://claude.com/claude-code',
-    scope: 'machine',
-    run: 'claude',
-    install: { kind: 'claude-code' },
-    installHint: 'curl -fsSL https://claude.ai/install.sh | bash',
-    detect: { command: 'claude' },
-  },
-  {
     id: 'code-atlas',
     name: 'code-atlas',
     description:
-      "Cartographie et audit d'un projet TypeScript : graphe des features, règles, score, audits IA.",
+      "Cartographie et audit d'un projet TypeScript : graphe des features, règles, score, audits IA. Lancé sur le dossier parent, il propose tes projets.",
     url: 'https://github.com/Vincweb/code-atlas',
-    scope: 'repo',
+    // Installed for the whole machine and started on the parent folder, where it offers the
+    // projects; what it recorded in each clone shows in the list of repos (`atlas.ts`).
+    scope: 'machine',
     run: 'npx @vincweb/code-atlas',
-    install: { kind: 'dev-dependency', package: '@vincweb/code-atlas' },
-    detect: {
-      files: ['code-atlas.json', '.code-atlas/baseline.json'],
-      dependency: '@vincweb/code-atlas',
-    },
+    install: { kind: 'npm-global', package: '@vincweb/code-atlas', from: 'npmjs' },
+    detect: { command: 'code-atlas' },
   },
   {
     id: 'claude-context-viewer',
@@ -78,8 +65,20 @@ export const DEFAULT_TOOLS: ToolConfig[] = [
     url: 'https://github.com/Vincweb/claude-context-viewer',
     scope: 'machine',
     run: 'npx claude-context-viewer',
-    install: { kind: 'npm-global', package: 'claude-context-viewer' },
+    install: { kind: 'npm-global', package: 'claude-context-viewer', from: 'npmjs' },
     detect: { command: 'claude-context-viewer' },
+  },
+  {
+    // Nothing to launch nor copy: « Piloter avec Claude » invites it. The card says where it stands.
+    id: 'claude-code',
+    name: 'Claude Code',
+    description:
+      'L’agent qui travaille dans tes repos ; Zeus lui répond par MCP. « Piloter avec Claude » ouvre une session sur ce dossier.',
+    url: 'https://claude.com/claude-code',
+    scope: 'machine',
+    install: { kind: 'claude-code' },
+    installHint: 'curl -fsSL https://claude.ai/install.sh | bash',
+    detect: { command: 'claude' },
   },
 ]
 
@@ -196,10 +195,17 @@ export const loadHome = (root: string): Home => {
   }
 }
 
-/** The tools of a root: the defaults, with the config's own on top. */
+/** Claude Code closes the list of tools: the others are there to serve it. */
+const LAST_TOOL = 'claude-code'
+
+/** The tools of a root: the defaults, with the config's own on top — and Claude Code last. */
 export const toolsOf = (home: Home): ToolConfig[] => {
   const own = new Set(home.config.tools.map((tool) => tool.id))
-  return [...DEFAULT_TOOLS.filter((tool) => !own.has(tool.id)), ...home.config.tools]
+  const all = [...DEFAULT_TOOLS.filter((tool) => !own.has(tool.id)), ...home.config.tools]
+  return [
+    ...all.filter((tool) => tool.id !== LAST_TOOL),
+    ...all.filter((tool) => tool.id === LAST_TOOL),
+  ]
 }
 
 /** The folder new clones of an account go to: the account's own name, unless the config renames it. */
