@@ -245,7 +245,33 @@ export type ToolVersion = {
   outdated: boolean
 }
 
-export type ToolVersionsPayload = { versions: Record<string, ToolVersion> }
+/** How to get the latest Zeus, by the way this one runs. */
+export type ZeusUpgrade = {
+  /** `npm`: the command installs it, and Zeus is started again after; `npx`: the command is that start. */
+  via: 'npm' | 'npx'
+  command: string
+}
+
+/**
+ * How the Zeus that answers compares with its latest release on npm. A server keeps the version it
+ * started with: a later release shows only once Zeus is started again.
+ */
+export type ZeusVersion = {
+  installed: string
+  latest: string
+  outdated: boolean
+  /**
+   * Worked out only when a later release exists. Null when Zeus runs from a folder of its own —
+   * its sources, a build — or was installed by other means than npm: then nothing here can say how.
+   */
+  upgrade: ZeusUpgrade | null
+}
+
+export type ToolVersionsPayload = {
+  versions: Record<string, ToolVersion>
+  /** Null when the running version is unknown, or npm did not answer. */
+  zeus: ZeusVersion | null
+}
 
 export type RunState = 'running' | 'ok' | 'failed' | 'stopped'
 

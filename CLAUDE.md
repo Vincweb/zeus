@@ -60,7 +60,7 @@ src/server/
   terminal.ts           ouvrir Terminal sur un outil (macOS)
   atlas.ts              le score que code-atlas a enregistré dans un clone
   journal.ts            ce que le serveur de la page a fait : ses lignes, les actions, les outils lancés
-  versions.ts           les outils de la machine et de Claude Code sont-ils à jour
+  versions.ts           les outils de la machine, Claude Code et Zeus lui-même sont-ils à jour
   selfCommand.ts        la commande qui relance ce Zeus, pour un prompt donné à un agent
   mcp/                  `zeus mcp` : index (protocole stdio), tools (catalogue), calls (réponses)
   host.ts               qui a le droit de lire, qui a le droit d'agir
@@ -74,6 +74,7 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
   components/Dashboard  une flotte : onglets par compte, repos, actions, outils
   components/TerminalSheet  le terminal de Zeus : le journal du serveur (Console), qui monte du bas
   components/Footer     la fin de page : version, liens
+  components/ZeusUpdate une version plus récente de Zeus : laquelle, la commande qui la prend
 ```
 
 ## Règles
@@ -113,9 +114,10 @@ src/client/             la page (React, TanStack Query, Tailwind v4)
 - **Zeus rassemble les résultats d'un outil, il ne les calcule pas** : le score d'un clone est celui
   que code-atlas a enregistré (`.code-atlas/baseline.json`, sa référence), lu tel quel (`atlas.ts`)
   — un fichier absent ou d'une autre forme ne donne aucun score.
-- **« À jour » ne vaut que pour la machine et Claude Code** (`versions.ts`, à part du statut : npm
-  et GitHub sont interrogés). La version d'un outil dans un projet relève des dépendances de ce
-  projet — voir « Frontière ».
+- **« À jour » ne vaut que pour la machine, Claude Code et Zeus lui-même** (`versions.ts`, à part
+  du statut : npm et GitHub sont interrogés). La version d'un outil dans un projet relève des
+  dépendances de ce projet — voir « Frontière ». Zeus ne se remplace jamais : il montre la commande
+  qui prend sa dernière version (`upgradeAt`), et c'est à l'utilisateur de le relancer.
 - **Aucun jeton stocké**, rien d'écrit sur GitHub : Zeus lit avec le `gh` de l'utilisateur,
   constate, et montre la commande (`gh auth login`) quand il manque quelque chose.
 - **Claude est invité, jamais lancé** : un prompt ouvert dans l'app, rempli et non envoyé

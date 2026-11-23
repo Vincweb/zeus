@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
+import type { ZeusVersion } from '../../shared/types'
 import { Badge, BoltIcon } from './ui'
+import { releaseNotes } from './ZeusUpdate'
 
 const REPOSITORY = 'https://github.com/Vincweb/zeus'
 
@@ -10,11 +12,19 @@ const FooterLink = ({ href, children }: { href: string; children: ReactNode }) =
 )
 
 /** The end of the page: which Zeus this is, what it does and does not, and where to read more. */
-export const Footer = ({ version }: { version: string }) => (
+export const Footer = ({ version, zeus }: { version: string; zeus: ZeusVersion | null }) => (
   <footer className="mt-12 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-5 text-[12px] text-faint">
     <span className="flex items-center gap-1.5 text-muted">
       <BoltIcon className="text-accent" width="13" height="13" />
       <span className="font-medium">Zeus {version || __APP_VERSION__}</span>
+      {zeus?.outdated && (
+        <>
+          <Badge tone="info" title="Une version plus récente de Zeus est publiée sur npm">
+            {zeus.latest} disponible
+          </Badge>
+          <FooterLink href={releaseNotes(zeus.latest)}>nouveautés</FooterLink>
+        </>
+      )}
       {__APP_DEV__ && (
         <Badge tone="warn" title="La page vient de Vite : Zeus est en cours de développement">
           dev

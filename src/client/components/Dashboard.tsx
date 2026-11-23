@@ -40,6 +40,7 @@ import { RepoTable } from './RepoTable'
 import { ReposDialog } from './ReposDialog'
 import { Summary } from './Summary'
 import { Tools } from './Tools'
+import { ZeusUpdate } from './ZeusUpdate'
 import {
   ArrowDownIcon,
   BoltIcon,
@@ -431,6 +432,8 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         </div>
       )}
 
+      <ZeusUpdate zeus={toolVersions.data?.zeus ?? null} />
+
       <div
         className="mt-5 flex flex-wrap items-center gap-2"
         role="tablist"
@@ -577,7 +580,7 @@ export const Dashboard = ({ root, workspace }: { root: string; workspace: string
         />
       </div>
 
-      <Footer version={home.version} />
+      <Footer version={home.version} zeus={toolVersions.data?.zeus ?? null} />
 
       {claudeOpen && <ClaudeDialog root={root} home={home} onClose={() => setClaudeOpen(false)} />}
 

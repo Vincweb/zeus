@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { catalogEntry, isNewer } from './versions'
+import { NPX_COMMAND } from './selfCommand'
+import { catalogEntry, isNewer, upgradeAt } from './versions'
 
 test('says a release is newer only when it comes later, not when it merely differs', () => {
   assert.ok(isNewer('1.5.0', '1.4.0'))
@@ -38,4 +39,24 @@ test('reads a plugin’s version off its marketplace catalog, and only a plain f
     assert.equal(catalogEntry(catalog, name), null, name)
   }
   assert.equal(catalogEntry(undefined, 'listed'), null)
+})
+
+test('says how to get the latest Zeus only where it knows how it was installed', () => {
+  const globalRoot = '/usr/local/lib/node_modules'
+  // Fetched by npx: the same command, asked for the latest whatever the npm.
+  assert.deepEqual(
+    upgradeAt('/home/me/.npm/_npx/0a1b2c3d/node_modules/@vincweb/zeus/dist/cli.js', globalRoot),
+    { via: 'npx', command: `${NPX_COMMAND}@latest` },
+  )
+  // Installed by npm for the whole machine: the install of any machine tool, from npmjs.
+  assert.deepEqual(upgradeAt(`${globalRoot}/@vincweb/zeus/dist/cli.js`, globalRoot), {
+    via: 'npm',
+    command: 'npm install -g @vincweb/zeus@latest --@vincweb:registry=https://registry.npmjs.org/',
+  })
+  // A build or the sources of a clone are updated with that clone, never by npm.
+  assert.equal(upgradeAt('/home/me/Zeus/dist/cli.js', globalRoot), null)
+  assert.equal(upgradeAt('/home/me/Zeus/src/server/selfCommand.ts', globalRoot), null)
+  // Another package of the global root, or no root known: nothing to say.
+  assert.equal(upgradeAt(`${globalRoot}/@vincweb/zeus-other/dist/cli.js`, globalRoot), null)
+  assert.equal(upgradeAt(`${globalRoot}/@vincweb/zeus/dist/cli.js`, null), null)
 })

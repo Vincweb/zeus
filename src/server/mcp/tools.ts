@@ -95,7 +95,7 @@ export const TOOLS = [
   {
     name: 'home',
     description:
-      'The parent folder itself: its workspaces (the GitHub accounts gh can see, followed or left out, how many of their repositories this root leaves out, their archived repositories that are not cloned, and the folder new clones of each go to), how clones are fetched on this machine, the cross-project tools, where each is in place and, with `versions`, whether those of the machine and of Claude Code have a later release, and the git folders under the root that are not clones of a followed repository, each with the reason.',
+      'The parent folder itself: its workspaces (the GitHub accounts gh can see, followed or left out, how many of their repositories this root leaves out, their archived repositories that are not cloned, and the folder new clones of each go to), how clones are fetched on this machine, the cross-project tools, where each is in place and, with `versions`, whether those of the machine and of Claude Code — and this Zeus itself — have a later release, and the git folders under the root that are not clones of a followed repository, each with the reason.',
     annotations: READ_ONLY,
     inputSchema: {
       type: 'object',
@@ -105,7 +105,7 @@ export const TOOLS = [
         versions: {
           type: 'boolean',
           description:
-            'Also ask npm and GitHub whether the tools of the machine and the Claude Code plugins have a later release. A few seconds; off by default.',
+            'Also ask npm and GitHub whether the tools of the machine, the Claude Code plugins and Zeus itself have a later release. For Zeus, `upgrade` says how to get it when that is known: `via: "npm"` is the install to run, when the user asks; `via: "npx"` is the command that starts the latest page, which never ends — hand it to the user, do not run it. Either way, this MCP server keeps running the version it started with until Claude Code starts it again. A few seconds; off by default.',
         },
       },
       additionalProperties: false,

@@ -6,6 +6,7 @@ import type {
   JournalPayload,
   Owner,
   StatusPayload,
+  ToolVersionsPayload,
 } from '../shared/types'
 import { claudeLink, fleetPath } from '../shared/routes'
 import { cloneRepo, updateRepo } from './actions'
@@ -31,7 +32,7 @@ import { MISSING_CLIENT, clientIsBuilt, devPage, serveClientFile } from './stati
 import { collectDetails, collectStatus } from './status'
 import { canOpenTerminal, openTerminal } from './terminal'
 import { dependsOn } from './tools'
-import { readToolVersions } from './versions'
+import { readToolVersions, readZeusVersion } from './versions'
 
 const json = (response: http.ServerResponse, payload: unknown, status = 200) => {
   response.writeHead(status, {
@@ -367,11 +368,16 @@ export const serveZeus = ({
         return { closed }
       }
 
-      // How the installed tools compare with their latest release: npm and GitHub are asked, so
-      // it comes apart from the status, once the page is on screen.
+      // How the installed tools, and this Zeus, compare with their latest release: npm and GitHub
+      // are asked, so it comes apart from the status, once the page is on screen.
       case '/api/tools/versions': {
         const root = rootOf(url.searchParams.get('root'))
-        return { versions: await readToolVersions(toolsOf(loadHome(root))) }
+        const [versions, zeus] = await Promise.all([
+          readToolVersions(toolsOf(loadHome(root))),
+          readZeusVersion(version),
+        ])
+        const payload: ToolVersionsPayload = { versions, zeus }
+        return payload
       }
 
       // Which accounts a root follows: all of them, minus the ones named here.

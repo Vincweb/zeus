@@ -321,6 +321,30 @@ test('gives one repository in full, and the parent folder with its accounts', ()
   assert.equal(first?.version, '0.4.0')
   assert.equal(first?.latestVersion, '0.5.0')
   assert.equal(first?.upToDate, false)
+  // Zeus itself, with the tools' versions only, and the command that gets it when one is known.
+  assert.ok(!('zeus' in home))
+  const behind = homeView(
+    fleet,
+    {},
+    {
+      installed: '0.3.0',
+      latest: '0.4.0',
+      outdated: true,
+      upgrade: { via: 'npx', command: 'npx @vincweb/zeus@latest' },
+    },
+  )
+  assert.deepEqual(behind.zeus, {
+    version: '0.3.0',
+    latestVersion: '0.4.0',
+    upToDate: false,
+    upgrade: { via: 'npx', command: 'npx @vincweb/zeus@latest' },
+  })
+  const current = homeView(
+    fleet,
+    {},
+    { installed: '0.4.0', latest: '0.4.0', outdated: false, upgrade: null },
+  )
+  assert.deepEqual(current.zeus, { version: '0.4.0', latestVersion: '0.4.0', upToDate: true })
   assert.equal(home.workspaces[1]?.newClonesGoTo, '/fleet/acme')
   assert.deepEqual(home.otherGitFolders, [
     { path: '/fleet/stray', reason: 'no-remote', uncommittedFiles: 2 },

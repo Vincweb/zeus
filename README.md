@@ -216,6 +216,12 @@ For the tools of the machine and of Claude Code, Zeus also says whether a **late
 click (`npm install -g name@latest`, `claude plugin update …`). A project's tool is left out: its
 version is one of that project's dependencies.
 
+Zeus checks **its own version** the same way. When a later release is on npm, the page says so and
+shows the command that takes it — `npm install -g @vincweb/zeus@latest` when npm installed it, the
+same `npx` asked for `@latest` when npx fetched it. Zeus never replaces itself: the server keeps
+the version it started with, so stop it and start it again. Run from a clone, it is that clone you
+update.
+
 ## What Zeus does — and does not
 
 Zeus is an **orchestrator**. The rule that draws the line:

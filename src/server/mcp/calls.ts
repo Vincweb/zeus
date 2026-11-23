@@ -1,11 +1,11 @@
 import path from 'path'
-import type { RepoStatus, StatusPayload, ToolVersion } from '../../shared/types'
+import type { RepoStatus, StatusPayload, ToolVersion, ZeusVersion } from '../../shared/types'
 import { cloneRepo, updateRepo } from '../actions'
 import { mapLimit } from '../exec'
 import { ConfigError, MARKER, expandTilde, findHome, loadHome, toolsOf } from '../home'
 import { installTool } from '../install'
 import { collectStatus } from '../status'
-import { readToolVersions } from '../versions'
+import { readToolVersions, readZeusVersion } from '../versions'
 import { FILTERS, type FleetFilter, type ToolName } from './tools'
 
 /** What each tool of `zeus mcp` answers; the catalogue is in tools.ts, the protocol in index.ts. */
@@ -229,7 +229,11 @@ export const repoView = (status: StatusPayload, repo: RepoStatus) => {
 }
 
 /** The parent folder as the `home` tool answers it. */
-export const homeView = (status: StatusPayload, versions: Record<string, ToolVersion> = {}) => ({
+export const homeView = (
+  status: StatusPayload,
+  versions: Record<string, ToolVersion> = {},
+  zeus: ZeusVersion | null = null,
+) => ({
   root: status.home.root,
   signedInAs: status.home.login,
   cloneProtocol: status.home.cloneProtocol,
@@ -276,6 +280,19 @@ export const homeView = (status: StatusPayload, versions: Record<string, ToolVer
     ...(repo.githubId ? { github: repo.githubId } : {}),
     uncommittedFiles: repo.dirtyFiles,
   })),
+  // Asked with the tools' versions. This server keeps the version it started with: Claude Code
+  // starts it again (a new session, or a reconnection) to take a later one. `via` says whether the
+  // command installs it, or is itself a start of the page — which does not end.
+  ...(zeus
+    ? {
+        zeus: {
+          version: zeus.installed,
+          latestVersion: zeus.latest,
+          upToDate: !zeus.outdated,
+          ...(zeus.upgrade ? { upgrade: zeus.upgrade } : {}),
+        },
+      }
+    : {}),
   ...(status.warnings.length > 0 ? { warnings: status.warnings } : {}),
 })
 
@@ -302,10 +319,12 @@ const answer = async (ctx: McpContext, name: ToolName, params: Params): Promise<
     case 'home': {
       const status = await read(ctx, params)
       // npm and GitHub are only asked when the agent wants to know: offline, they take seconds.
-      return homeView(
-        status,
-        params.versions === true ? await readToolVersions(status.tools) : undefined,
-      )
+      if (params.versions !== true) return homeView(status)
+      const [versions, zeus] = await Promise.all([
+        readToolVersions(status.tools),
+        readZeusVersion(ctx.version),
+      ])
+      return homeView(status, versions, zeus)
     }
     case 'update': {
       const status = await read(ctx, params, false)

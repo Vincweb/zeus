@@ -1,9 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import type { ToolConfig, ToolVersion } from '../shared/types'
+import type { ToolConfig, ToolVersion, ZeusUpgrade, ZeusVersion } from '../shared/types'
 import { exec } from './exec'
-import { registryArgs } from './install'
+import { previewUpdate, registryArgs } from './install'
 import { asArray, asString, at, parseJson } from './json'
+import { NPX_COMMAND, ZEUS_PACKAGE, cliFile, fetchedByNpx } from './selfCommand'
 import { pluginVersion } from './tools'
 
 const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/
@@ -66,6 +67,20 @@ const npmGlobalRoot = async () => {
     globalRoot = result.ok ? firstLine(result.stdout) : null
   }
   return globalRoot
+}
+
+/**
+ * The same folder, as a real path. Node names the file it runs by its real path, and the global
+ * root may be reached through a link (Homebrew, nvm).
+ */
+const realGlobalRoot = async () => {
+  const root = await npmGlobalRoot()
+  if (root === null) return null
+  try {
+    return fs.realpathSync(root)
+  } catch {
+    return root
+  }
 }
 
 /** The version Claude Code says it is: `2.1.289 (Claude Code)`. */
@@ -171,4 +186,39 @@ export const readToolVersions = async (tools: ToolConfig[]) => {
   )
   for (const [id, version] of found) if (version) versions[id] = version
   return versions
+}
+
+/**
+ * How to get the latest Zeus, by the way the CLI found at `here` runs. Fetched by npx, the same
+ * command asked for `@latest`: npm 11 checks a bare name against the registry before it reuses its
+ * cache, and `@latest` asks the same of any npm. Installed by npm for the whole machine — under
+ * `realRoot`, its global folder as a real path — the install that updates any tool of the machine.
+ * From a folder of its own — its sources, a build — or another installer, Zeus is updated with that
+ * folder or that installer: null.
+ */
+export const upgradeAt = (here: string, realRoot: string | null): ZeusUpgrade | null => {
+  if (fetchedByNpx(here)) return { via: 'npx', command: `${NPX_COMMAND}@latest` }
+  const isGlobalInstall =
+    realRoot !== null && here.startsWith(path.join(realRoot, ZEUS_PACKAGE) + path.sep)
+  if (!isGlobalInstall) return null
+  const [command] = previewUpdate({ kind: 'npm-global', package: ZEUS_PACKAGE, from: 'npmjs' })
+  return command ? { via: 'npm', command } : null
+}
+
+/**
+ * How this Zeus compares with its latest release on npm and, when a later one exists, how to get
+ * it — asked of npm only then, since it costs a command. Null when the running version is not one
+ * (empty, or read from nowhere) or npm did not answer: nothing to say rather than a warning.
+ */
+export const readZeusVersion = async (installed: string): Promise<ZeusVersion | null> => {
+  if (!VERSION.test(installed.trim())) return null
+  const latest = await npmLatest(ZEUS_PACKAGE, 'npmjs')
+  if (latest === null) return null
+  const outdated = isNewer(latest, installed)
+  return {
+    installed,
+    latest,
+    outdated,
+    upgrade: outdated ? upgradeAt(cliFile(), await realGlobalRoot()) : null,
+  }
 }
