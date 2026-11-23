@@ -1,6 +1,6 @@
 {
   "name": "@vincweb/zeus",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Orchestrate a fleet of git repositories: the registry of the repos you follow, their state, clone and update in one click, and the cross-project tools that go with them",
   "keywords": [
     "git",
